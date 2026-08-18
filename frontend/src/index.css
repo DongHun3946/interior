@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif; color: #191f28; background: #f6f7f8; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+.serif { font-family: inherit; font-weight: 750; letter-spacing: -.04em; }
+.noise { background: #f6f7f8; }
+.mobile-bottom-nav { display: none; }
+.print-sheet { display: none; }
+@media (max-width: 1023px) {
+  .mobile-bottom-nav { position: fixed; z-index: 25; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 9px 10px max(9px, env(safe-area-inset-bottom)); border-top: 1px solid #e8ebed; background: rgba(255,255,255,.96); box-shadow: 0 -6px 24px rgba(31, 42, 52,.07); backdrop-filter: blur(16px); }
+  .mobile-bottom-safe { padding-bottom: 82px; }
+}
+
+@media print {
+  @page { size: A4; margin: 14mm; }
+  body * { visibility: hidden !important; }
+  .print-sheet, .print-sheet * { visibility: visible !important; }
+  .print-sheet { display: block !important; position: absolute; inset: 0; width: 100%; color: #111; background: white; }
+  .print-sheet table th, .print-sheet table td { border: 1px solid #cfd8d1; padding: 8px; }
+}
+@layer components {
+  .panel { @apply rounded-2xl border border-[#eaedef] bg-white shadow-[0_4px_18px_rgba(31,42,52,.035)]; }
+  .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-[#18372b] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#285744] disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-[#dfe5df] bg-white px-4 py-2.5 text-sm font-semibold text-[#345344] transition hover:bg-[#f3f7f2]; }
+  .field { @apply w-full rounded-xl border border-[#c9d3cb] bg-white px-3.5 py-3 text-sm text-[#22352b] outline-none transition placeholder:text-[#929f96] hover:border-[#aebdb2] focus:border-[#628b72] focus:ring-2 focus:ring-[#d9e9dd]; }
+  .label { @apply mb-1.5 block text-xs font-semibold text-[#718078]; }
+  .required-mark { @apply text-red-500; }
+}

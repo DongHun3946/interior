@@ -52,6 +52,7 @@ import type {
 import PublicPortfolio from "./PublicPortfolio";
 import NaverMap from "./NaverMap";
 import EstimateInquiriesPage from "./EstimateInquiries";
+import CompanySettingsPage from "./CompanySettings";
 import SimulationWorkspace from "./SimulationWorkspace";
 import { showDatePicker } from "./datePicker";
 import MoneyInput from "./MoneyInput";
@@ -271,8 +272,13 @@ function Empty({
 }
 
 function Login({ onLogin }: { onLogin: () => void }) {
-  const [email, setEmail] = useState("admin@interior.local");
-  const [password, setPassword] = useState("admin1234!");
+  const [loginId, setLoginId] = useState(
+    () => localStorage.getItem("interior_login_id") || "",
+  );
+  const [rememberLoginId, setRememberLoginId] = useState(
+    () => Boolean(localStorage.getItem("interior_login_id")),
+  );
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const submit = async (event: FormEvent) => {
@@ -280,7 +286,12 @@ function Login({ onLogin }: { onLogin: () => void }) {
     setError("");
     setLoading(true);
     try {
-      const result = await api.login(email, password);
+      const result = await api.login(loginId, password);
+      if (rememberLoginId) {
+        localStorage.setItem("interior_login_id", loginId);
+      } else {
+        localStorage.removeItem("interior_login_id");
+      }
       localStorage.setItem("interior_token", result.access_token);
       onLogin();
     } catch (e) {
@@ -331,22 +342,33 @@ function Login({ onLogin }: { onLogin: () => void }) {
                 관리자 계정으로 현장에 접속하세요.
               </p>
             </div>
-            <label className="label">이메일</label>
+            <label className="label">아이디</label>
             <input
               className="field mb-4"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              autoComplete="username"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
               required
             />
             <label className="label">비밀번호</label>
             <input
               className="field"
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
+            <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-[#65736a]">
+              <input
+                type="checkbox"
+                checked={rememberLoginId}
+                onChange={(e) => setRememberLoginId(e.target.checked)}
+                className="h-4 w-4 accent-[#315f40]"
+              />
+              아이디 저장
+            </label>
             {error && (
               <p className="mt-3 rounded-lg bg-[#fff0ef] px-3 py-2 text-xs text-[#a14e4e]">
                 {error}
@@ -2220,14 +2242,7 @@ function AdminApp() {
     );
   } else if (page === "settings") {
     title = "업체 설정";
-    content = (
-      <div className="p-5 sm:p-8">
-        <Empty
-          title="설정 준비 중"
-          message="업체 소개, 공개 연락처, 지도 API 설정은 다음 업데이트에서 제공됩니다."
-        />
-      </div>
-    );
+    content = <CompanySettingsPage />;
   } else {
     content = (
       <DashboardPage

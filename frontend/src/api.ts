@@ -1,5 +1,6 @@
 import type {
   Cost,
+  CompanySettings,
   Dashboard,
   EstimateDocument,
   EstimateInquiry,
@@ -48,13 +49,20 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const mediaUrl = (path?: string) =>
   path?.startsWith("http") ? path : `${API}${path || ""}`;
 export const api = {
-  login: (email: string, password: string) =>
+  login: (loginId: string, password: string) =>
     request<{ access_token: string; user: User }>("/api/v1/auth/login", {
       method: "POST",
-      body: new URLSearchParams({ username: email, password }),
+      body: new URLSearchParams({ username: loginId, password }),
     }),
   me: () => request<User>("/api/v1/auth/me"),
   dashboard: () => request<Dashboard>("/api/v1/dashboard/summary"),
+  companySettings: () =>
+    request<CompanySettings>("/api/v1/company-settings"),
+  updateCompanySettings: (body: CompanySettings) =>
+    request<CompanySettings>("/api/v1/company-settings", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
   projects: (params = "") =>
     request<{
       items: ProjectListItem[];

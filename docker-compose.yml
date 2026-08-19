@@ -20,7 +20,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-interior}:${POSTGRES_PASSWORD:-interior}@db:5432/${POSTGRES_DB:-interior}
       SECRET_KEY: ${SECRET_KEY:-local-development-secret-change-me}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@interior.local}
+      ADMIN_LOGIN_ID: ${ADMIN_LOGIN_ID:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin1234!}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       MEDIA_DIR: /app/media

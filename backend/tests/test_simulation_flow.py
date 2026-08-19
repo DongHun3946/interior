@@ -7,7 +7,7 @@ from pathlib import Path
 TEST_ROOT = tempfile.TemporaryDirectory(prefix="interior-simulation-test-")
 os.environ["DATABASE_URL"] = f"sqlite:///{Path(TEST_ROOT.name, 'test.db').as_posix()}"
 os.environ["MEDIA_DIR"] = str(Path(TEST_ROOT.name, "media"))
-os.environ["ADMIN_EMAIL"] = "simulation-test@example.com"
+os.environ["ADMIN_LOGIN_ID"] = "simulation-test"
 os.environ["ADMIN_PASSWORD"] = "test-password"
 
 from fastapi.testclient import TestClient
@@ -24,9 +24,29 @@ class SimulationFlowTest(unittest.TestCase):
 
     def test_create_edit_version_verify_material_and_scan(self):
         with TestClient(app) as client:
-            login = client.post("/api/v1/auth/login", data={"username": "simulation-test@example.com", "password": "test-password"})
+            login = client.post("/api/v1/auth/login", data={"username": "simulation-test", "password": "test-password"})
             self.assertEqual(login.status_code, 200, login.text)
+            self.assertEqual(login.json()["user"]["login_id"], "simulation-test")
             headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+            company_payload = {
+                "business_name": "테스트 인테리어",
+                "address": "서울특별시 중구 세종대로 110",
+                "business_registration_number": "123-45-67890",
+                "representative_name": "홍길동",
+                "phone": "02-1234-5678",
+                "fax": "02-1234-5679",
+            }
+            company = client.put(
+                "/api/v1/company-settings",
+                json=company_payload,
+                headers=headers,
+            )
+            self.assertEqual(company.status_code, 200, company.text)
+            self.assertEqual(company.json(), company_payload)
+            loaded_company = client.get("/api/v1/company-settings", headers=headers)
+            self.assertEqual(loaded_company.status_code, 200, loaded_company.text)
+            self.assertEqual(loaded_company.json(), company_payload)
 
             project = client.post("/api/v1/projects", json={"title": "시뮬레이션 테스트", "address": "서울특별시 중구 세종대로 110"}, headers=headers)
             self.assertEqual(project.status_code, 201, project.text)

@@ -14,8 +14,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from .core.config import get_settings
 from .db import Base, engine, get_db
-from .models import CostItem, CostItemType, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, PaymentStatus, Project, ProjectImage, ProjectStatus, ProjectStatusHistory, User, UserRole
-from .schemas import CostCreate, CostOut, CostSummary, CostUpdate, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
+from .models import CompanySettings, CostItem, CostItemType, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, PaymentStatus, Project, ProjectImage, ProjectStatus, ProjectStatusHistory, User, UserRole
+from .schemas import CompanySettingsOut, CompanySettingsUpdate, CostCreate, CostOut, CostSummary, CostUpdate, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
 from .security import create_access_token, get_current_user, hash_password, verify_password
 from .schema_compat import ensure_schema_compatibility
 from .storage import save_upload
@@ -31,9 +31,17 @@ async def lifespan(_: FastAPI):
     ensure_schema_compatibility(engine)
     Path(settings.media_dir).mkdir(parents=True, exist_ok=True)
     with Session(engine) as db:
-        admin = db.scalar(select(User).where(User.email == settings.admin_email))
+        admin = db.scalar(select(User).where(User.login_id == settings.admin_login_id))
         if not admin:
-            db.add(User(email=settings.admin_email, password_hash=hash_password(settings.admin_password), name="관리자", role=UserRole.ADMIN))
+            admin = db.scalar(
+                select(User)
+                .where(User.role == UserRole.ADMIN)
+                .order_by(User.created_at)
+            )
+            if admin:
+                admin.login_id = settings.admin_login_id
+            else:
+                db.add(User(login_id=settings.admin_login_id, password_hash=hash_password(settings.admin_password), name="관리자", role=UserRole.ADMIN))
             db.commit()
     yield
 
@@ -76,7 +84,9 @@ def replace_estimate_lines(estimate: EstimateDocument, payload_lines: list, db: 
     for index, payload in enumerate(payload_lines):
         values = payload.model_dump()
         sort_order = values.pop("sort_order", index)
-        supply_amount = int(Decimal(values["quantity"]) * values["unit_price"])
+        quantity = Decimal(values["quantity"])
+        effective_quantity = quantity if quantity > 0 else Decimal(1)
+        supply_amount = int(effective_quantity * values["unit_price"])
         vat_amount = int(round(supply_amount * 0.1))
         line = EstimateLine(
             **values,
@@ -122,15 +132,34 @@ def health() -> dict[str, str]:
 
 @app.post("/api/v1/auth/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.scalar(select(User).where(User.email == form_data.username))
+    user = db.scalar(select(User).where(User.login_id == form_data.username))
     if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="이메일 또는 비밀번호를 확인해주세요.")
+        raise HTTPException(status_code=401, detail="아이디 또는 비밀번호를 확인해주세요.")
     return Token(access_token=create_access_token(str(user.id)), user=UserOut.model_validate(user))
 
 
 @app.get("/api/v1/auth/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)) -> User:
     return user
+
+
+@app.get("/api/v1/company-settings", response_model=CompanySettingsOut)
+def get_company_settings(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+    company = db.scalar(select(CompanySettings).order_by(CompanySettings.created_at).limit(1))
+    return company or CompanySettingsOut()
+
+
+@app.put("/api/v1/company-settings", response_model=CompanySettingsOut)
+def update_company_settings(payload: CompanySettingsUpdate, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    company = db.scalar(select(CompanySettings).order_by(CompanySettings.created_at).limit(1))
+    if not company:
+        company = CompanySettings()
+        db.add(company)
+    for key, value in payload.model_dump().items():
+        setattr(company, key, value.strip())
+    db.commit()
+    db.refresh(company)
+    return company
 
 
 @app.get("/api/v1/maps/geocode", response_model=list[GeocodeResult])

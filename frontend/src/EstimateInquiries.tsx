@@ -23,7 +23,6 @@ import MoneyInput from "./MoneyInput";
 import IntegerInput from "./IntegerInput";
 import AddressMapPicker from "./AddressMapPicker";
 import type {
-  CostCategory,
   EstimateDocument,
   EstimateInquiry,
   EstimateLine,
@@ -53,16 +52,6 @@ const inquiryStatusStyles: Record<InquiryStatus, string> = {
   LOST: "bg-rose-50 text-rose-700",
   ON_HOLD: "bg-slate-100 text-slate-600",
 };
-const categoryLabels: Record<CostCategory, string> = {
-  DEMOLITION: "철거",
-  CARPENTRY: "목공",
-  ELECTRICAL: "전기",
-  PLUMBING: "설비",
-  WALLPAPER: "도배",
-  FLOORING: "바닥",
-  FURNITURE: "가구",
-  OTHER: "기타",
-};
 const statuses: InquiryStatus[] = [
   "NEW",
   "CONSULTATION_SCHEDULED",
@@ -73,14 +62,20 @@ const inquiryStatusDots: Partial<Record<InquiryStatus, string>> = {
   CONSULTATION_SCHEDULED: "bg-violet-500",
   CONTRACTED: "bg-emerald-500",
 };
-const categories = Object.keys(categoryLabels) as CostCategory[];
 const won = (value = 0) => `${new Intl.NumberFormat("ko-KR").format(value)}원`;
+const estimateQuantity = (value: number) =>
+  Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : 1;
 const pyeong = (value?: number) =>
   value ? `${Math.round(Number(value))}평` : "평수 미정";
 const tenThousandWon = (value: string) =>
   `${new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 }).format(Number(value || 0) / 10000)}만원`;
 const dateText = (value?: string) =>
   value ? new Date(value).toLocaleDateString("ko-KR") : "미정";
+const dateTimeText = (value: string) => {
+  const date = new Date(value);
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
 const toLocalDateTime = (value?: string) =>
   value ? new Date(value).toISOString().slice(0, 16) : "";
 const formatPhoneNumber = (value: string) => {
@@ -492,8 +487,8 @@ const blankLine = (sortOrder: number): EstimateLine => ({
   category: "OTHER",
   name: "",
   specification: "",
-  quantity: 1,
-  unit: "식",
+  quantity: 0,
+  unit: "",
   unit_price: 0,
   sort_order: sortOrder,
 });
@@ -515,7 +510,18 @@ function EstimateEditor({
   const [notes, setNotes] = useState(estimate?.notes || "");
   const [lines, setLines] = useState<EstimateLine[]>(
     estimate?.lines.length
-      ? estimate.lines.map((line, index) => ({ ...line, sort_order: index }))
+      ? estimate.lines.map((line, index) => {
+          const legacyEmptyUnit = line.unit === "-";
+          return {
+            ...line,
+            unit: legacyEmptyUnit ? "" : line.unit,
+            quantity:
+              legacyEmptyUnit && Number(line.quantity) === 1
+                ? 0
+                : line.quantity,
+            sort_order: index,
+          };
+        })
       : [blankLine(0)],
   );
   const [saving, setSaving] = useState(false);
@@ -523,7 +529,7 @@ function EstimateEditor({
   const totals = useMemo(() => {
     const supply = lines.reduce(
       (sum, line) =>
-        sum + Number(line.quantity || 0) * Number(line.unit_price || 0),
+        sum + estimateQuantity(line.quantity) * Number(line.unit_price || 0),
       0,
     );
     const vat = Math.round(supply * 0.1);
@@ -536,13 +542,13 @@ function EstimateEditor({
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (lines.some((line) => !line.name.trim())) {
-      setError("모든 견적 항목의 공사명을 입력해 주세요.");
+      setError("모든 견적 항목의 품명을 입력해 주세요.");
       return;
     }
     setSaving(true);
     setError("");
     const body = {
-      title,
+      title: title.trim() || "인테리어 공사 견적서",
       notes: notes || null,
       lines: lines.map(
         (
@@ -555,7 +561,17 @@ function EstimateEditor({
             ...line
           },
           index,
-        ) => ({ ...line, sort_order: index }),
+        ) => ({
+          ...line,
+          category: line.category || "OTHER",
+          name: line.name.trim() || `견적 항목 ${index + 1}`,
+          unit: line.unit.trim(),
+          quantity:
+            Number.isFinite(Number(line.quantity)) && Number(line.quantity) >= 0
+              ? Number(line.quantity)
+              : 0,
+          sort_order: index,
+        }),
       ),
     };
     try {
@@ -587,9 +603,9 @@ function EstimateEditor({
           <div>
             <p className="text-xs font-semibold text-[#829187]">
               {newVersion
-                ? "새 견적 버전"
+                ? "새 견적 작성"
                 : estimate
-                  ? `견적서 v${estimate.version} 수정`
+                  ? `${estimate.version}차 견적서 수정`
                   : "첫 견적서"}
             </p>
             <h2 className="mt-1 text-2xl font-bold text-[#1d382b]">
@@ -610,45 +626,30 @@ function EstimateEditor({
               className="field"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              required
             />
           </div>
         </div>
         <div className="space-y-3 p-6">
-          <div className="hidden grid-cols-[110px_1.4fr_1fr_90px_80px_140px_42px] gap-2 px-2 text-xs font-semibold text-[#75827a] lg:grid">
-            <span>공종</span>
-            <span>공사명</span>
-            <span>규격·내용</span>
-            <span>수량</span>
+          <div className="hidden grid-cols-[1.2fr_1fr_70px_80px_120px_120px_1fr_42px] gap-2 px-2 text-xs font-semibold text-[#75827a] lg:grid">
+            <span>품명</span>
+            <span>규격</span>
             <span>단위</span>
+            <span>수량</span>
             <span>단가</span>
+            <span>금액</span>
+            <span>비고</span>
             <span />
           </div>
           {lines.map((line, index) => (
             <div
               key={index}
-              className="grid gap-2 rounded-xl border border-[#e5eae5] bg-[#fbfcfa] p-3 lg:grid-cols-[110px_1.4fr_1fr_90px_80px_140px_42px]"
+              className="grid gap-2 rounded-xl border border-[#e5eae5] bg-[#fbfcfa] p-3 lg:grid-cols-[1.2fr_1fr_70px_80px_120px_120px_1fr_42px]"
             >
-              <select
-                className="field px-2 py-2"
-                value={line.category}
-                onChange={(e) =>
-                  updateLine(index, {
-                    category: e.target.value as CostCategory,
-                  })
-                }
-              >
-                {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {categoryLabels[category]}
-                  </option>
-                ))}
-              </select>
               <input
                 className="field px-2 py-2"
                 value={line.name}
                 onChange={(e) => updateLine(index, { name: e.target.value })}
-                placeholder="공사명"
+                required
               />
               <input
                 className="field px-2 py-2"
@@ -656,22 +657,22 @@ function EstimateEditor({
                 onChange={(e) =>
                   updateLine(index, { specification: e.target.value })
                 }
-                placeholder="규격·내용"
-              />
-              <input
-                className="field px-2 py-2"
-                min="0.01"
-                step="0.01"
-                type="number"
-                value={line.quantity}
-                onChange={(e) =>
-                  updateLine(index, { quantity: Number(e.target.value) })
-                }
               />
               <input
                 className="field px-2 py-2"
                 value={line.unit}
                 onChange={(e) => updateLine(index, { unit: e.target.value })}
+              />
+              <input
+                className="field px-2 py-2"
+                step="any"
+                type="number"
+                value={Number(line.quantity) > 0 ? line.quantity : ""}
+                onChange={(e) =>
+                  updateLine(index, {
+                    quantity: e.target.value ? Number(e.target.value) : 0,
+                  })
+                }
               />
               <MoneyInput
                 className="field px-2 py-2 text-right"
@@ -679,6 +680,17 @@ function EstimateEditor({
                 onValueChange={(value) =>
                   updateLine(index, { unit_price: Number(value || 0) })
                 }
+              />
+              <div className="field flex items-center justify-end px-2 py-2 font-semibold text-[#3f5c49]">
+                {won(
+                  estimateQuantity(line.quantity) *
+                    Number(line.unit_price || 0),
+                )}
+              </div>
+              <input
+                className="field px-2 py-2"
+                value={line.memo || ""}
+                onChange={(e) => updateLine(index, { memo: e.target.value })}
               />
               <button
                 type="button"
@@ -694,10 +706,6 @@ function EstimateEditor({
               >
                 <X size={17} />
               </button>
-              <p className="text-right text-xs font-semibold text-[#5c7163] lg:col-span-7">
-                공급가{" "}
-                {won(Number(line.quantity || 0) * Number(line.unit_price || 0))}
-              </p>
             </div>
           ))}
           <button
@@ -791,8 +799,8 @@ function PrintEstimate({
         </div>
         <div className="text-right">
           <p>
-            견적번호: Q-{estimate.created_at.slice(0, 10).replaceAll("-", "")}-V
-            {estimate.version}
+            견적번호: Q-{estimate.created_at.slice(0, 10).replaceAll("-", "")}-
+            {estimate.version}차
           </p>
           <p>작성일: {dateText(estimate.created_at)}</p>
         </div>
@@ -801,27 +809,29 @@ function PrintEstimate({
       <table className="mt-3 w-full border-collapse text-sm">
         <thead>
           <tr className="bg-[#edf3ee]">
-            <th>공종</th>
-            <th>공사명</th>
-            <th>규격·내용</th>
-            <th>수량</th>
+            <th>품명</th>
+            <th>규격</th>
             <th>단위</th>
+            <th>수량</th>
             <th>단가</th>
-            <th>공급가</th>
+            <th>금액</th>
+            <th>비고</th>
           </tr>
         </thead>
         <tbody>
           {estimate.lines.map((line) => (
             <tr key={line.id}>
-              <td>{categoryLabels[line.category]}</td>
               <td>{line.name}</td>
-              <td>{line.specification || "-"}</td>
-              <td className="text-right">{line.quantity}</td>
+              <td>{line.specification || ""}</td>
               <td>{line.unit}</td>
+              <td className="text-right">
+                {Number(line.quantity) > 0 ? line.quantity : ""}
+              </td>
               <td className="text-right">{won(line.unit_price)}</td>
               <td className="text-right">
                 {won(line.supply_amount || line.quantity * line.unit_price)}
               </td>
+              <td>{line.memo || ""}</td>
             </tr>
           ))}
         </tbody>
@@ -979,11 +989,13 @@ function InquiryDetail({
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             <div>
               <label className="label">진행 상태</label>
-              <InquiryStatusSelect
-                disabled={busy || inquiry.status === "CONTRACTED"}
-                value={inquiry.status}
-                onChange={updateStatus}
-              />
+              <div className="w-full md:w-1/2">
+                <InquiryStatusSelect
+                  disabled={busy || inquiry.status === "CONTRACTED"}
+                  value={inquiry.status}
+                  onChange={updateStatus}
+                />
+              </div>
             </div>
             <div>
               <p className="label">희망 예산</p>
@@ -1000,7 +1012,7 @@ function InquiryDetail({
             </div>
           </div>
           {(inquiry.request_details || inquiry.memo) && (
-            <div className="mt-5 grid gap-4 border-t border-[#edf0ed] pt-5 md:grid-cols-2">
+            <div className="mt-5 grid gap-4 border-t-2 border-[#d8e1da] pt-5 md:grid-cols-2">
               <div>
                 <p className="label">공사 요청사항</p>
                 <p className="whitespace-pre-wrap text-sm leading-6 text-[#53645a]">
@@ -1021,9 +1033,9 @@ function InquiryDetail({
           <div className="panel overflow-hidden">
             <div className="flex items-center justify-between border-b border-[#edf0ed] p-4">
               <div>
-                <h3 className="font-bold text-[#294534]">견적 버전</h3>
+                <h3 className="font-bold text-[#294534]">견적 내역</h3>
                 <p className="text-xs text-[#8b978f]">
-                  총 {estimates.length}개
+                  총 {estimates.length}건
                 </p>
               </div>
               <button
@@ -1042,9 +1054,12 @@ function InquiryDetail({
                     className={`flex w-full items-center justify-between p-4 text-left ${selectedEstimate?.id === estimate.id ? "bg-[#f0f6f0]" : "hover:bg-[#fafbfa]"}`}
                   >
                     <div>
-                      <b className="text-sm">v{estimate.version}</b>
+                      <b className="text-sm">{estimate.version}차 견적</b>
                       <p className="mt-1 text-xs text-[#849188]">
                         {won(estimate.total_amount)}
+                      </p>
+                      <p className="mt-1 text-xs text-[#849188]">
+                        작성일 {dateTimeText(estimate.created_at)}
                       </p>
                     </div>
                     <ChevronRight size={15} />
@@ -1062,7 +1077,7 @@ function InquiryDetail({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold text-[#839188]">
-                    견적서 v{selectedEstimate.version}
+                    {selectedEstimate.version}차 견적서
                   </p>
                   <h3 className="mt-1 text-2xl font-bold text-[#203a2d]">
                     {selectedEstimate.title}
@@ -1085,25 +1100,25 @@ function InquiryDetail({
                     className="btn-secondary"
                     onClick={() =>
                       setEditor({
-                        estimate: selectedEstimate,
                         newVersion: true,
                       })
                     }
                   >
-                    <FilePlus2 size={15} /> 새 버전
+                    <FilePlus2 size={15} /> 새 견적 작성
                   </button>
                 </div>
               </div>
               <div className="mt-6 overflow-x-auto">
-                <table className="w-full min-w-[650px] text-left text-sm">
+                <table className="w-full min-w-[850px] text-left text-sm">
                   <thead>
                     <tr className="border-y border-[#e7ece7] bg-[#f7f9f7] text-xs text-[#75827a]">
-                      <th className="px-3 py-3">공종</th>
-                      <th className="px-3 py-3">공사명</th>
-                      <th className="px-3 py-3">규격</th>
-                      <th className="px-3 py-3 text-right">수량</th>
-                      <th className="px-3 py-3 text-right">단가</th>
-                      <th className="px-3 py-3 text-right">공급가</th>
+                      <th className="border-r border-[#dfe6e0] px-3 py-3">품명</th>
+                      <th className="border-r border-[#dfe6e0] px-3 py-3">규격</th>
+                      <th className="border-r border-[#dfe6e0] px-3 py-3">단위</th>
+                      <th className="border-r border-[#dfe6e0] px-3 py-3">수량</th>
+                      <th className="border-r border-[#dfe6e0] px-3 py-3">단가</th>
+                      <th className="border-r border-[#dfe6e0] px-3 py-3">금액</th>
+                      <th className="px-3 py-3">비고</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1112,21 +1127,22 @@ function InquiryDetail({
                         key={line.id || line.sort_order}
                         className="border-b border-[#edf0ed]"
                       >
-                        <td className="px-3 py-3">
-                          {categoryLabels[line.category]}
+                        <td className="border-r border-[#e4e9e5] px-3 py-3 font-semibold">{line.name}</td>
+                        <td className="border-r border-[#e4e9e5] px-3 py-3 text-[#728078]">
+                          {line.specification || ""}
                         </td>
-                        <td className="px-3 py-3 font-semibold">{line.name}</td>
-                        <td className="px-3 py-3 text-[#728078]">
-                          {line.specification || "-"}
+                        <td className="border-r border-[#e4e9e5] px-3 py-3">{line.unit}</td>
+                        <td className="border-r border-[#e4e9e5] px-3 py-3 text-right">
+                          {Number(line.quantity) > 0 ? line.quantity : ""}
                         </td>
-                        <td className="px-3 py-3 text-right">
-                          {line.quantity} {line.unit}
-                        </td>
-                        <td className="px-3 py-3 text-right">
+                        <td className="border-r border-[#e4e9e5] px-3 py-3 text-right">
                           {won(line.unit_price)}
                         </td>
-                        <td className="px-3 py-3 text-right">
+                        <td className="border-r border-[#e4e9e5] px-3 py-3 text-right">
                           {won(line.supply_amount)}
+                        </td>
+                        <td className="px-3 py-3 text-[#728078]">
+                          {line.memo || ""}
                         </td>
                       </tr>
                     ))}

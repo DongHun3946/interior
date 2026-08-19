@@ -146,11 +146,25 @@ class AIJobStatus(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
     id: Mapped[uuid.UUID] = uuid_column()
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    login_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     name: Mapped[str] = mapped_column(String(100))
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.ADMIN)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class CompanySettings(Base):
+    __tablename__ = "company_settings"
+
+    id: Mapped[uuid.UUID] = uuid_column()
+    business_name: Mapped[str] = mapped_column(String(200), default="")
+    address: Mapped[str] = mapped_column(String(500), default="")
+    business_registration_number: Mapped[str] = mapped_column(String(30), default="")
+    representative_name: Mapped[str] = mapped_column(String(100), default="")
+    phone: Mapped[str] = mapped_column(String(40), default="")
+    fax: Mapped[str] = mapped_column(String(40), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -317,8 +331,8 @@ class EstimateLine(Base):
     category: Mapped[CostCategory] = mapped_column(Enum(CostCategory), default=CostCategory.OTHER)
     name: Mapped[str] = mapped_column(String(200))
     specification: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    quantity: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=1)
-    unit: Mapped[str] = mapped_column(String(30), default="식")
+    quantity: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0)
+    unit: Mapped[str] = mapped_column(String(30), default="")
     unit_price: Mapped[int] = mapped_column(BigInteger, default=0)
     supply_amount: Mapped[int] = mapped_column(BigInteger, default=0)
     vat_amount: Mapped[int] = mapped_column(BigInteger, default=0)

@@ -160,9 +160,18 @@ export interface Dashboard {
 }
 export interface User {
   id: string;
-  email: string;
+  login_id: string;
   name: string;
   role: string;
+}
+
+export interface CompanySettings {
+  business_name: string;
+  address: string;
+  business_registration_number: string;
+  representative_name: string;
+  phone: string;
+  fax: string;
 }
 
 export type InquiryStatus =

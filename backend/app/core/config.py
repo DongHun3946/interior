@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     access_token_expire_minutes: int = 60
     cors_origins: str = "http://localhost:5173"
-    admin_email: str = "admin@interior.local"
+    admin_login_id: str = "admin"
     admin_password: str = "admin1234!"
     media_dir: str = "media"
     max_upload_size: int = 15 * 1024 * 1024

@@ -10,7 +10,7 @@ from .models import CostCategory, CostItemType, ImageCategory, InquiryStatus, Pa
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
-    email: str
+    login_id: str
     name: str
     role: UserRole
 
@@ -19,6 +19,19 @@ class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+
+
+class CompanySettingsUpdate(BaseModel):
+    business_name: str = Field(default="", max_length=200)
+    address: str = Field(default="", max_length=500)
+    business_registration_number: str = Field(default="", max_length=30)
+    representative_name: str = Field(default="", max_length=100)
+    phone: str = Field(default="", max_length=40)
+    fax: str = Field(default="", max_length=40)
+
+
+class CompanySettingsOut(CompanySettingsUpdate):
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProjectBase(BaseModel):
@@ -269,8 +282,8 @@ class EstimateLineCreate(BaseModel):
     category: CostCategory = CostCategory.OTHER
     name: str = Field(min_length=1, max_length=200)
     specification: str | None = None
-    quantity: Decimal = Field(default=1, gt=0)
-    unit: str = Field(default="식", min_length=1, max_length=30)
+    quantity: Decimal = Field(default=0, ge=0)
+    unit: str = Field(default="", max_length=30)
     unit_price: int = Field(default=0, ge=0, le=9_000_000_000_000)
     memo: str | None = None
     sort_order: int = Field(default=0, ge=0)

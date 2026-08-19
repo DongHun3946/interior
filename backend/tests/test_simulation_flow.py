@@ -56,6 +56,19 @@ class SimulationFlowTest(unittest.TestCase):
             self.assertEqual(recent.status_code, 200, recent.text)
             self.assertEqual(recent.json()["items"][0]["id"], project_id)
 
+            archived = client.delete(f"/api/v1/projects/{project_id}", headers=headers)
+            self.assertEqual(archived.status_code, 204, archived.text)
+            active_projects = client.get("/api/v1/projects?page_size=5", headers=headers)
+            self.assertNotIn(project_id, [item["id"] for item in active_projects.json()["items"]])
+            archived_projects = client.get("/api/v1/projects?page_size=5&archived=true", headers=headers)
+            self.assertEqual(archived_projects.status_code, 200, archived_projects.text)
+            self.assertIn(project_id, [item["id"] for item in archived_projects.json()["items"]])
+            restored = client.patch(f"/api/v1/projects/{project_id}/restore", headers=headers)
+            self.assertEqual(restored.status_code, 200, restored.text)
+            self.assertEqual(restored.json()["id"], project_id)
+            active_projects = client.get("/api/v1/projects?page_size=5", headers=headers)
+            self.assertIn(project_id, [item["id"] for item in active_projects.json()["items"]])
+
             first_photo = client.post(
                 f"/api/v1/projects/{project_id}/images",
                 files={"file": ("first.jpg", b"first", "image/jpeg")},

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   CalendarClock,
@@ -22,6 +23,8 @@ import { showDatePicker } from "./datePicker";
 import MoneyInput from "./MoneyInput";
 import IntegerInput from "./IntegerInput";
 import AddressMapPicker from "./AddressMapPicker";
+import Modal from "./Modal";
+import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
 import type {
   CompanySettings,
   EstimateDocument,
@@ -72,6 +75,23 @@ const inquiryStatusDots: Partial<Record<InquiryStatus, string>> = {
   CONSULTATION_SCHEDULED: "bg-violet-500",
   CONTRACTED: "bg-emerald-500",
 };
+const inquiryStatusFilterOptions: DropdownOption[] = [
+  { value: "", label: "전체 상태" },
+  ...statuses.map((status) => ({
+    value: status,
+    label: inquiryStatusLabels[status],
+    dotClass: inquiryStatusDots[status] || "bg-slate-400",
+  })),
+];
+const lossReasonOptions: DropdownOption[] = [
+  { value: "", label: "선택" },
+  { value: "가격", label: "가격" },
+  { value: "일정", label: "일정" },
+  { value: "연락 두절", label: "연락 두절" },
+  { value: "타 업체 계약", label: "타 업체 계약" },
+  { value: "단순 견적 문의", label: "단순 견적 문의" },
+  { value: "기타", label: "기타" },
+];
 const won = (value = 0) => `${new Intl.NumberFormat("ko-KR").format(value)}원`;
 const estimateQuantity = (value: number) =>
   Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : 1;
@@ -447,19 +467,12 @@ function InquiryForm({
           {form.status === "LOST" && (
             <div className="md:col-span-2">
               <label className="label">미계약 사유</label>
-              <select
-                className="field"
+              <DropdownSelect
                 value={form.loss_reason}
-                onChange={(e) => set("loss_reason", e.target.value)}
-              >
-                <option value="">선택</option>
-                <option>가격</option>
-                <option>일정</option>
-                <option>연락 두절</option>
-                <option>타 업체 계약</option>
-                <option>단순 견적 문의</option>
-                <option>기타</option>
-              </select>
+                options={lossReasonOptions}
+                onChange={(value) => set("loss_reason", value)}
+                ariaLabel="미계약 사유"
+              />
             </div>
           )}
           {error && (
@@ -892,8 +905,8 @@ function PrintEstimate({
         </section>
       )}
       <footer className="mt-16 border-t pt-4 text-xs text-gray-500">
-        본 견적서는 유효기간 내에 한하여 적용되며, 현장 상황과 자재 선택에 따라
-        금액이 변경될 수 있습니다.
+        본 견적서는 작성일로부터 1년간 유효하며, 현장 상황과 자재 선택에 따라
+        금액이 변경될 수 있습니다. (작성일: {dateText(estimate.created_at)})
       </footer>
     </article>
   );
@@ -927,6 +940,12 @@ function InquiryDetail({
     useState<CompanySettings | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [convertForm, setConvertForm] = useState<{
+    project_title: string;
+    planned_start_date: string;
+    planned_end_date: string;
+  } | null>(null);
+  const [convertError, setConvertError] = useState("");
   useEffect(() => setSelectedEstimate(estimates[0]), [inquiry]);
   useEffect(() => {
     let active = true;
@@ -946,7 +965,11 @@ function InquiryDetail({
     if (!printing || !companySettings) return;
     const timer = window.setTimeout(() => {
       const originalTitle = document.title;
-      document.title = "";
+      const createdAt = new Date(printing.created_at);
+      const pad = (part: number) => String(part).padStart(2, "0");
+      const createdDate = `${createdAt.getFullYear()}-${pad(createdAt.getMonth() + 1)}-${pad(createdAt.getDate())}`;
+      const safeCustomerName = inquiry.customer_name.replace(/[\\/:*?"<>|]/g, "_");
+      document.title = `견적서_${safeCustomerName}_고객_${createdDate}`;
       try {
         window.print();
       } finally {
@@ -955,7 +978,7 @@ function InquiryDetail({
       }
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [printing, companySettings]);
+  }, [printing, companySettings, inquiry.customer_name]);
   if (editor)
     return (
       <EstimateEditor
@@ -988,19 +1011,37 @@ function InquiryDetail({
       setBusy(false);
     }
   };
-  const convert = async () => {
-    if (
-      !window.confirm(
-        "이 견적 문의를 계약 완료로 처리하고 공사 현장을 생성할까요?",
-      )
-    )
+  const openConvertModal = () => {
+    setConvertError("");
+    setConvertForm({
+      project_title: `${inquiry.customer_name} 고객 현장`,
+      planned_start_date: inquiry.desired_start_date || "",
+      planned_end_date: "",
+    });
+  };
+  const convert = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!convertForm) return;
+    if (!convertForm.project_title.trim()) {
+      setConvertError("현장명을 입력해 주세요.");
       return;
+    }
+    if (convertForm.planned_end_date < convertForm.planned_start_date) {
+      setConvertError("공사 종료일은 시작일보다 빠를 수 없습니다.");
+      return;
+    }
     setBusy(true);
+    setConvertError("");
     try {
-      const project = await api.convertInquiry(inquiry.id);
+      const project = await api.convertInquiry(inquiry.id, {
+        project_title: convertForm.project_title.trim(),
+        planned_start_date: convertForm.planned_start_date,
+        planned_end_date: convertForm.planned_end_date,
+      });
+      setConvertForm(null);
       onOpenProject(project.id);
     } catch (e) {
-      setMessage(
+      setConvertError(
         e instanceof Error ? e.message : "현장으로 전환하지 못했습니다.",
       );
     } finally {
@@ -1263,7 +1304,11 @@ function InquiryDetail({
                 <CheckCircle2 size={16} /> 생성된 현장 열기
               </button>
             ) : (
-              <button className="btn-primary" disabled={busy} onClick={convert}>
+              <button
+                className="btn-primary"
+                disabled={busy}
+                onClick={openConvertModal}
+              >
                 <CheckCircle2 size={16} /> 계약 완료 · 현장 전환
               </button>
             )}
@@ -1281,12 +1326,104 @@ function InquiryDetail({
           </div>
         </section>
       </div>
+      {convertForm && (
+        <Modal
+          title="계약 완료 · 현장 생성"
+          description="현장명과 공사기간을 확인한 뒤 현장을 생성하세요."
+          onClose={() => setConvertForm(null)}
+          closeDisabled={busy}
+        >
+          <form className="space-y-5 p-5 sm:p-6" onSubmit={convert}>
+            <div>
+              <label className="label" htmlFor="convert-project-title">
+                현장명
+              </label>
+              <input
+                id="convert-project-title"
+                className="field"
+                value={convertForm.project_title}
+                onChange={(event) =>
+                  setConvertForm({
+                    ...convertForm,
+                    project_title: event.target.value,
+                  })
+                }
+                autoFocus
+                required
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="convert-start-date">
+                  공사 시작일
+                </label>
+                <input
+                  id="convert-start-date"
+                  className="field"
+                  type="date"
+                  onClick={showDatePicker}
+                  value={convertForm.planned_start_date}
+                  onChange={(event) =>
+                    setConvertForm({
+                      ...convertForm,
+                      planned_start_date: event.target.value,
+                    })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="convert-end-date">
+                  공사 종료일
+                </label>
+                <input
+                  id="convert-end-date"
+                  className="field"
+                  type="date"
+                  onClick={showDatePicker}
+                  min={convertForm.planned_start_date || undefined}
+                  value={convertForm.planned_end_date}
+                  onChange={(event) =>
+                    setConvertForm({
+                      ...convertForm,
+                      planned_end_date: event.target.value,
+                    })
+                  }
+                  required
+                />
+              </div>
+            </div>
+            {convertError && (
+              <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {convertError}
+              </p>
+            )}
+            <div className="flex justify-end gap-2 border-t border-[#e5eae5] pt-5">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setConvertForm(null)}
+                disabled={busy}
+              >
+                취소
+              </button>
+              <button type="submit" className="btn-primary" disabled={busy}>
+                <CheckCircle2 size={16} />
+                {busy ? "현장 생성 중…" : "현장 생성"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
       {printing && companySettings && (
-        <PrintEstimate
-          inquiry={inquiry}
-          estimate={printing}
-          companySettings={companySettings}
-        />
+        createPortal(
+          <PrintEstimate
+            inquiry={inquiry}
+            estimate={printing}
+            companySettings={companySettings}
+          />,
+          document.body,
+        )
       )}
     </>
   );
@@ -1435,18 +1572,13 @@ export default function EstimateInquiriesPage({
               placeholder="고객명, 연락처, 주소 검색"
             />
           </div>
-          <select
-            className="field w-full sm:w-48"
+          <DropdownSelect
+            className="w-full sm:w-48"
             value={status}
-            onChange={(e) => setStatus(e.target.value as InquiryStatus | "")}
-          >
-            <option value="">전체 상태</option>
-            {statuses.map((item) => (
-              <option key={item} value={item}>
-                {inquiryStatusLabels[item]}
-              </option>
-            ))}
-          </select>
+            options={inquiryStatusFilterOptions}
+            onChange={(value) => setStatus(value as InquiryStatus | "")}
+            ariaLabel="견적 상담 상태 필터"
+          />
         </div>
         {error && (
           <p className="m-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">

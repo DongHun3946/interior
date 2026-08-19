@@ -85,6 +85,8 @@ export const api = {
     }),
   deleteProject: (id: string) =>
     request<void>(`/api/v1/projects/${id}`, { method: "DELETE" }),
+  restoreProject: (id: string) =>
+    request<Project>(`/api/v1/projects/${id}/restore`, { method: "PATCH" }),
   status: (id: string, status: ProjectStatus, note?: string) =>
     request<Project>(`/api/v1/projects/${id}/status`, {
       method: "PATCH",

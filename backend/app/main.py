@@ -273,8 +273,8 @@ def dashboard(_: User = Depends(require_admin), db: Session = Depends(get_db)):
 
 
 @app.get("/api/v1/projects", response_model=ProjectList)
-def list_projects(page: int = Query(1, ge=1), page_size: int = Query(12, ge=1, le=100), status_filter: ProjectStatus | None = Query(None, alias="status"), q: str | None = None, sort_by: str = Query("updated_at", alias="sort", pattern="^(created_at|updated_at)$"), _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    conditions = [Project.deleted_at.is_(None)]
+def list_projects(page: int = Query(1, ge=1), page_size: int = Query(12, ge=1, le=100), status_filter: ProjectStatus | None = Query(None, alias="status"), q: str | None = None, sort_by: str = Query("updated_at", alias="sort", pattern="^(created_at|updated_at)$"), archived: bool = False, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    conditions = [Project.deleted_at.is_not(None) if archived else Project.deleted_at.is_(None)]
     if status_filter:
         conditions.append(Project.status == status_filter)
     if q:
@@ -326,6 +326,16 @@ def delete_project(project_id: UUID, _: User = Depends(require_admin), db: Sessi
     project = project_or_404(db, project_id)
     project.deleted_at = datetime.now(timezone.utc)
     db.commit()
+
+
+@app.patch("/api/v1/projects/{project_id}/restore", response_model=ProjectOut)
+def restore_project(project_id: UUID, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    project = db.scalar(select(Project).where(Project.id == project_id, Project.deleted_at.is_not(None)))
+    if not project:
+        raise HTTPException(status_code=404, detail="보관된 현장을 찾을 수 없습니다.")
+    project.deleted_at = None
+    db.commit()
+    return project_or_404(db, project.id)
 
 
 @app.patch("/api/v1/projects/{project_id}/status", response_model=ProjectOut)

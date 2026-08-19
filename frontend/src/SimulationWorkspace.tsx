@@ -27,6 +27,7 @@ import {
   Upload,
 } from "lucide-react";
 import { api, mediaUrl } from "./api";
+import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
 import type {
   MaterialType,
   SceneDocument,
@@ -72,6 +73,14 @@ const materialLabels: Record<MaterialType, string> = {
   PAINT: "페인트",
   OTHER: "기타",
 };
+const materialTypeOptions: DropdownOption[] = Object.entries(materialLabels).map(
+  ([value, label]) => ({ value, label }),
+);
+const scanSourceOptions: DropdownOption[] = [
+  { value: "PHOTOS", label: "여러 장의 공간 사진" },
+  { value: "VIDEO", label: "공간 동영상" },
+  { value: "ROOMPLAN", label: "Apple RoomPlan 결과" },
+];
 
 const cloneScene = (scene: SceneDocument): SceneDocument =>
   structuredClone(scene);
@@ -808,12 +817,20 @@ export default function SimulationWorkspace({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            className="field w-auto py-2"
+          <DropdownSelect
+            className="min-w-32"
             value={version.id}
-            onChange={(event) => {
+            options={[...simulation.versions].reverse().map((item) => ({
+              value: item.id,
+              label: `버전 ${item.version}${
+                item.id === simulation.current_version_id ? " (현재)" : ""
+              }`,
+            }))}
+            compact
+            ariaLabel="시뮬레이션 버전"
+            onChange={(value) => {
               const target = simulation.versions.find(
-                (item) => item.id === event.target.value,
+                (item) => item.id === value,
               );
               if (target) {
                 setVersion(target);
@@ -822,14 +839,7 @@ export default function SimulationWorkspace({
                 setSelectedId(undefined);
               }
             }}
-          >
-            {[...simulation.versions].reverse().map((item) => (
-              <option key={item.id} value={item.id}>
-                버전 {item.version}
-                {item.id === simulation.current_version_id ? " (현재)" : ""}
-              </option>
-            ))}
-          </select>
+          />
           <button
             className="btn-secondary"
             onClick={saveAsVersion}
@@ -1161,22 +1171,17 @@ export default function SimulationWorkspace({
                       setMaterialForm({ ...materialForm, name: e.target.value })
                     }
                   />
-                  <select
-                    className="field py-2"
+                  <DropdownSelect
                     value={materialForm.material_type}
-                    onChange={(e) =>
+                    options={materialTypeOptions}
+                    ariaLabel="재질 유형"
+                    onChange={(value) =>
                       setMaterialForm({
                         ...materialForm,
-                        material_type: e.target.value as MaterialType,
+                        material_type: value as MaterialType,
                       })
                     }
-                  >
-                    {Object.entries(materialLabels).map(([key, label]) => (
-                      <option key={key} value={key}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
+                  />
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       className="field py-2"
@@ -1231,17 +1236,14 @@ export default function SimulationWorkspace({
                     등록합니다. RoomPlan 결과 파일도 받을 수 있습니다.
                   </p>
                 </div>
-                <select
-                  className="field"
+                <DropdownSelect
                   value={scanSource}
-                  onChange={(e) =>
-                    setScanSource(e.target.value as typeof scanSource)
+                  options={scanSourceOptions}
+                  ariaLabel="공간 분석 자료 유형"
+                  onChange={(value) =>
+                    setScanSource(value as typeof scanSource)
                   }
-                >
-                  <option value="PHOTOS">여러 장의 공간 사진</option>
-                  <option value="VIDEO">공간 동영상</option>
-                  <option value="ROOMPLAN">Apple RoomPlan 결과</option>
-                </select>
+                />
                 <input
                   className="field p-2 text-xs"
                   type="file"

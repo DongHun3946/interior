@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  Archive,
   ArrowUpRight,
   CalendarDays,
   Camera,
@@ -26,6 +27,7 @@ import {
   Menu,
   Pencil,
   Plus,
+  RotateCcw,
   Search,
   Trash2,
   Upload,
@@ -57,6 +59,7 @@ import SimulationWorkspace from "./SimulationWorkspace";
 import { showDatePicker } from "./datePicker";
 import MoneyInput from "./MoneyInput";
 import IntegerInput from "./IntegerInput";
+import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
 
 const statusLabels: Record<ProjectStatus, string> = {
   PLANNING: "예정",
@@ -80,6 +83,32 @@ const statusDots: Record<ProjectStatus, string> = {
   CANCELLED: "bg-[#c96f6f]",
 };
 const projectStatusOptions = Object.keys(statusLabels) as ProjectStatus[];
+const projectStatusFilterOptions: DropdownOption[] = [
+  { value: "", label: "모든 상태" },
+  ...projectStatusOptions.map((status) => ({
+    value: status,
+    label: statusLabels[status],
+    dotClass: statusDots[status],
+  })),
+];
+const paymentStageOptions: DropdownOption[] = [
+  { value: "DEPOSIT", label: "계약금" },
+  { value: "INTERIM", label: "중도금" },
+  { value: "BALANCE", label: "잔금" },
+  { value: "OTHER", label: "기타" },
+];
+const paymentMethodOptions: DropdownOption[] = [
+  { value: "BANK_TRANSFER", label: "계좌이체" },
+  { value: "CASH", label: "현금" },
+  { value: "CARD", label: "카드" },
+  { value: "OTHER", label: "기타" },
+];
+const paymentStatusOptions: DropdownOption[] = [
+  { value: "SCHEDULED", label: "입금 예정", dotClass: "bg-blue-500" },
+  { value: "PAID", label: "입금 완료", dotClass: "bg-emerald-500" },
+  { value: "CANCELLED", label: "취소", dotClass: "bg-slate-400" },
+  { value: "REFUNDED", label: "환불", dotClass: "bg-rose-500" },
+];
 const money = (value: number) =>
   new Intl.NumberFormat("ko-KR").format(value) + "원";
 const shortDate = (date?: string) =>
@@ -96,7 +125,7 @@ const fullDate = (date?: string) =>
         month: "long",
         day: "numeric",
       })
-    : "—";
+    : "미정";
 
 function Badge({ status }: { status: ProjectStatus }) {
   return (
@@ -731,6 +760,91 @@ function DashboardPage({
   );
 }
 
+function ProjectCard({
+  project,
+  archived,
+  restoring,
+  onOpen,
+  onRestore,
+}: {
+  project: ProjectListItem;
+  archived: boolean;
+  restoring: boolean;
+  onOpen: () => void;
+  onRestore: () => void;
+}) {
+  const content = (
+    <>
+      <div className="relative h-48 bg-[#edf2ed]">
+        {project.cover_image ? (
+          <img
+            src={mediaUrl(project.cover_image.thumbnail_url)}
+            alt=""
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-[#a9b6ad]">
+            <ImageIcon size={29} />
+          </div>
+        )}
+        <div className="absolute left-4 top-4">
+          <Badge status={project.status} />
+        </div>
+        {project.is_public && (
+          <span className="absolute right-4 top-4 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-[#477653]">
+            PUBLIC
+          </span>
+        )}
+      </div>
+      <div className="p-5 pb-0">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="font-semibold text-[#294534]">{project.title}</h3>
+            <p className="mt-1 flex items-center gap-1 text-xs text-[#93a097]">
+              <MapPin size={12} />
+              {project.address}
+            </p>
+          </div>
+          {!archived && <ArrowUpRight size={17} className="text-[#8ea297]" />}
+        </div>
+      </div>
+    </>
+  );
+
+  return (
+    <article className="panel group overflow-hidden transition hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(22,38,31,.1)]">
+      {archived ? (
+        <div>{content}</div>
+      ) : (
+        <button type="button" className="block w-full text-left" onClick={onOpen}>
+          {content}
+        </button>
+      )}
+      <div className="mx-5 mt-5 flex items-center justify-between border-t border-[#eff1ed] py-4 text-xs text-[#8d9890]">
+        <span className="flex items-center gap-1">
+          <CalendarDays size={13} />
+          {fullDate(project.planned_start_date)} ~{" "}
+          {fullDate(project.actual_end_date || project.planned_end_date)}
+        </span>
+        {archived ? (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 font-semibold text-[#315d47] hover:bg-[#edf3ee] disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={onRestore}
+            disabled={restoring}
+          >
+            <RotateCcw size={13} /> {restoring ? "복원 중…" : "복원"}
+          </button>
+        ) : (
+          <button type="button" className="font-semibold" onClick={onOpen}>
+            상세 보기
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
 function ProjectsPage({
   onOpen,
   onCreate,
@@ -742,34 +856,72 @@ function ProjectsPage({
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [error, setError] = useState("");
   const load = () => {
     setLoading(true);
+    setError("");
     const params = new URLSearchParams({ page_size: "50" });
     if (query) params.set("q", query);
     if (status) params.set("status", status);
+    if (showArchived) params.set("archived", "true");
     api
       .projects(`?${params}`)
       .then((r) => setItems(r.items))
-      .catch(() => setItems([]))
+      .catch((caught) => {
+        setItems([]);
+        setError(
+          caught instanceof Error ? caught.message : "현장 목록을 불러오지 못했습니다.",
+        );
+      })
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     const timer = setTimeout(load, 180);
     return () => clearTimeout(timer);
-  }, [query, status]);
+  }, [query, status, showArchived]);
+  const restoreProject = async (id: string) => {
+    setRestoringId(id);
+    setError("");
+    try {
+      await api.restoreProject(id);
+      load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "현장을 복원하지 못했습니다.");
+    } finally {
+      setRestoringId(null);
+    }
+  };
   return (
     <div className="space-y-6 p-5 sm:p-8">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm text-[#758078]">모든 프로젝트를 한곳에서</p>
-          <h2 className="serif mt-1 text-3xl text-[#1b3025]">전체 현장</h2>
+          <p className="text-sm text-[#758078]">
+            {showArchived ? "보관된 프로젝트를 관리합니다" : "모든 프로젝트를 한곳에서"}
+          </p>
+          <h2 className="serif mt-1 text-3xl text-[#1b3025]">
+            {showArchived ? "현장 보관함" : "전체 현장"}
+          </h2>
         </div>
-        <button
-          className="btn-primary self-start sm:self-auto"
-          onClick={onCreate}
-        >
-          <Plus size={17} />새 현장 등록
-        </button>
+        <div className="flex gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              setShowArchived((current) => !current);
+              setError("");
+            }}
+          >
+            {showArchived ? <FolderKanban size={17} /> : <Archive size={17} />}
+            {showArchived ? "전체 현장" : "보관함"}
+          </button>
+          {!showArchived && (
+            <button className="btn-primary" onClick={onCreate}>
+              <Plus size={17} />새 현장 등록
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
@@ -784,19 +936,19 @@ function ProjectsPage({
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <select
-          className="field sm:w-44"
+        <DropdownSelect
+          className="sm:w-44"
           value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        >
-          <option value="">모든 상태</option>
-          {Object.entries(statusLabels).map(([key, value]) => (
-            <option key={key} value={key}>
-              {value}
-            </option>
-          ))}
-        </select>
+          options={projectStatusFilterOptions}
+          onChange={setStatus}
+          ariaLabel="현장 상태 필터"
+        />
       </div>
+      {error && (
+        <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </p>
+      )}
       {loading ? (
         <div className="py-20 text-center text-sm text-[#8d9890]">
           현장 목록을 불러오는 중입니다…
@@ -804,68 +956,30 @@ function ProjectsPage({
       ) : items.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {items.map((project) => (
-            <button
+            <ProjectCard
               key={project.id}
-              onClick={() => onOpen(project.id)}
-              className="panel group overflow-hidden text-left transition hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(22,38,31,.1)]"
-            >
-              <div className="relative h-48 bg-[#edf2ed]">
-                {project.cover_image ? (
-                  <img
-                    src={mediaUrl(project.cover_image.thumbnail_url)}
-                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-[#a9b6ad]">
-                    <ImageIcon size={29} />
-                  </div>
-                )}
-                <div className="absolute left-4 top-4">
-                  <Badge status={project.status} />
-                </div>
-                {project.is_public && (
-                  <span className="absolute right-4 top-4 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-[#477653]">
-                    PUBLIC
-                  </span>
-                )}
-              </div>
-              <div className="p-5">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="font-semibold text-[#294534]">
-                      {project.title}
-                    </h3>
-                    <p className="mt-1 flex items-center gap-1 text-xs text-[#93a097]">
-                      <MapPin size={12} />
-                      {project.address}
-                    </p>
-                  </div>
-                  <ArrowUpRight size={17} className="text-[#8ea297]" />
-                </div>
-                <div className="mt-5 flex items-center justify-between border-t border-[#eff1ed] pt-4 text-xs text-[#8d9890]">
-                  <span className="flex items-center gap-1">
-                    <CalendarDays size={13} />
-                    {fullDate(project.planned_start_date)} ~{" "}
-                    {fullDate(
-                      project.actual_end_date || project.planned_end_date,
-                    )}
-                  </span>
-                  <span>상세 보기</span>
-                </div>
-              </div>
-            </button>
+              project={project}
+              archived={showArchived}
+              restoring={restoringId === project.id}
+              onOpen={() => onOpen(project.id)}
+              onRestore={() => restoreProject(project.id)}
+            />
           ))}
         </div>
       ) : (
         <Empty
-          title="등록된 현장이 없습니다"
-          message="첫 번째 프로젝트를 등록하고 사진과 공사비를 기록해보세요."
-          action={
+          title={showArchived ? "보관된 현장이 없습니다" : "등록된 현장이 없습니다"}
+          message={
+            showArchived
+              ? "보관 처리한 현장이 이곳에 표시됩니다."
+              : "첫 번째 프로젝트를 등록하고 사진과 공사비를 기록해보세요."
+          }
+          action={!showArchived ? (
             <button className="btn-primary" onClick={onCreate}>
               <Plus size={16} />
               현장 등록하기
             </button>
-          }
+          ) : undefined}
         />
       )}
     </div>
@@ -1368,7 +1482,6 @@ function DetailPage({
     method: "BANK_TRANSFER" as PaymentMethod,
     status: "SCHEDULED" as PaymentStatus,
     supply_amount: "",
-    vat_amount: "",
     due_date: "",
     memo: "",
   });
@@ -1428,14 +1541,13 @@ function DetailPage({
     await api.createPayment(id, {
       ...paymentForm,
       supply_amount: Number(paymentForm.supply_amount),
-      vat_amount: Number(paymentForm.vat_amount || 0),
+      vat_amount: 0,
       due_date: paymentForm.due_date || null,
       paid_at: paymentForm.status === "PAID" ? new Date().toISOString() : null,
     });
     setPaymentForm({
       ...paymentForm,
       supply_amount: "",
-      vat_amount: "",
       memo: "",
     });
     setPayments(await api.payments(id));
@@ -1858,25 +1970,23 @@ function DetailPage({
                             <p className="text-sm font-semibold text-[#345344]">
                               {money(payment.total_amount)}
                             </p>
-                            <select
-                              className="mt-2 rounded-lg border border-[#dfe6df] bg-white px-2 py-1 text-xs"
+                            <DropdownSelect
+                              className="mt-2 min-w-28"
                               value={payment.status}
-                              onChange={async (e) => {
+                              options={paymentStatusOptions}
+                              compact
+                              ariaLabel="입금 상태"
+                              onChange={async (status) => {
                                 await api.updatePayment(id, payment.id, {
-                                  status: e.target.value,
+                                  status,
                                   paid_at:
-                                    e.target.value === "PAID"
+                                    status === "PAID"
                                       ? new Date().toISOString()
                                       : null,
                                 });
                                 setPayments(await api.payments(id));
                               }}
-                            >
-                              <option value="SCHEDULED">입금 예정</option>
-                              <option value="PAID">입금 완료</option>
-                              <option value="CANCELLED">취소</option>
-                              <option value="REFUNDED">환불</option>
-                            </select>
+                            />
                           </div>
                         </div>
                         <button
@@ -1900,39 +2010,31 @@ function DetailPage({
               <form className="panel p-5" onSubmit={addPayment}>
                 <h3 className="font-semibold text-[#294534]">입금 일정 추가</h3>
                 <div className="mt-4 grid grid-cols-2 gap-2">
-                  <select
-                    className="field"
+                  <DropdownSelect
                     value={paymentForm.stage}
-                    onChange={(e) =>
+                    options={paymentStageOptions}
+                    ariaLabel="입금 단계"
+                    onChange={(value) =>
                       setPaymentForm({
                         ...paymentForm,
-                        stage: e.target.value as PaymentStage,
+                        stage: value as PaymentStage,
                       })
                     }
-                  >
-                    <option value="DEPOSIT">계약금</option>
-                    <option value="INTERIM">중도금</option>
-                    <option value="BALANCE">잔금</option>
-                    <option value="OTHER">기타</option>
-                  </select>
-                  <select
-                    className="field"
+                  />
+                  <DropdownSelect
                     value={paymentForm.method}
-                    onChange={(e) =>
+                    options={paymentMethodOptions}
+                    ariaLabel="입금 방법"
+                    onChange={(value) =>
                       setPaymentForm({
                         ...paymentForm,
-                        method: e.target.value as PaymentMethod,
+                        method: value as PaymentMethod,
                       })
                     }
-                  >
-                    <option value="BANK_TRANSFER">계좌이체</option>
-                    <option value="CASH">현금</option>
-                    <option value="CARD">카드</option>
-                    <option value="OTHER">기타</option>
-                  </select>
+                  />
                   <MoneyInput
-                    className="field"
-                    placeholder="공급가액"
+                    className="field col-span-2"
+                    placeholder="입금 예정액"
                     value={paymentForm.supply_amount}
                     onValueChange={(value) =>
                       setPaymentForm({
@@ -1941,17 +2043,6 @@ function DetailPage({
                       })
                     }
                     required
-                  />
-                  <MoneyInput
-                    className="field"
-                    placeholder="부가세"
-                    value={paymentForm.vat_amount}
-                    onValueChange={(value) =>
-                      setPaymentForm({
-                        ...paymentForm,
-                        vat_amount: value,
-                      })
-                    }
                   />
                   <input
                     className="field"
@@ -1965,21 +2056,17 @@ function DetailPage({
                       })
                     }
                   />
-                  <select
-                    className="field"
+                  <DropdownSelect
                     value={paymentForm.status}
-                    onChange={(e) =>
+                    options={paymentStatusOptions}
+                    ariaLabel="입금 상태"
+                    onChange={(value) =>
                       setPaymentForm({
                         ...paymentForm,
-                        status: e.target.value as PaymentStatus,
+                        status: value as PaymentStatus,
                       })
                     }
-                  >
-                    <option value="SCHEDULED">입금 예정</option>
-                    <option value="PAID">입금 완료</option>
-                    <option value="CANCELLED">취소</option>
-                    <option value="REFUNDED">환불</option>
-                  </select>
+                  />
                 </div>
                 <input
                   className="field mt-2"

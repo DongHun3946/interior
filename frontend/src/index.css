@@ -22,6 +22,8 @@ button { cursor: pointer; }
   .print-sheet, .print-sheet * { visibility: visible !important; }
   .print-sheet { display: block !important; position: absolute; inset: 0; width: 100%; color: #111; background: white; }
   .print-sheet table th, .print-sheet table td { border: 1px solid #cfd8d1; padding: 8px; }
+  .print-sheet .company-info-table th, .print-sheet .company-info-table td { border-color: #555; padding: 3px 6px; line-height: 1.25; vertical-align: middle; }
+  .print-sheet .company-info-table th { background: #f5f5f5; }
 }
 @layer components {
   .panel { @apply rounded-2xl border border-[#eaedef] bg-white shadow-[0_4px_18px_rgba(31,42,52,.035)]; }

@@ -23,12 +23,22 @@ import MoneyInput from "./MoneyInput";
 import IntegerInput from "./IntegerInput";
 import AddressMapPicker from "./AddressMapPicker";
 import type {
+  CompanySettings,
   EstimateDocument,
   EstimateInquiry,
   EstimateLine,
   InquiryStats,
   InquiryStatus,
 } from "./types";
+
+const emptyCompanySettings: CompanySettings = {
+  business_name: "",
+  address: "",
+  business_registration_number: "",
+  representative_name: "",
+  phone: "",
+  fax: "",
+};
 
 const inquiryStatusLabels: Record<InquiryStatus, string> = {
   NEW: "신규 문의",
@@ -766,24 +776,56 @@ function EstimateEditor({
 function PrintEstimate({
   inquiry,
   estimate,
+  companySettings,
 }: {
   inquiry: EstimateInquiry;
   estimate: EstimateDocument;
+  companySettings: CompanySettings;
 }) {
+  const companyValue = (value: string) => value.trim() || "-";
+
   return (
     <article className="print-sheet">
       <header className="flex items-start justify-between border-b-2 border-[#17372b] pb-6">
         <div>
           <p className="text-sm font-bold tracking-[.2em] text-[#315d47]">
-            JEIL INTERIOR
+            제일 인테리어
           </p>
           <h1 className="mt-3 text-4xl font-bold">견 적 서</h1>
         </div>
-        <div className="text-right text-sm leading-7">
-          <b>Jeil Interior</b>
-          <br />
-          인테리어 설계·시공
-        </div>
+        <table className="company-info-table w-[370px] table-fixed border-collapse text-xs">
+          <tbody>
+            <tr>
+              <th rowSpan={6} className="w-8 text-center font-bold">
+                공<br />급<br />자
+              </th>
+              <th className="w-20 text-center">주소</th>
+              <td colSpan={2}>{companyValue(companySettings.address)}</td>
+            </tr>
+            <tr>
+              <th className="text-center">상호</th>
+              <td colSpan={2}>{companyValue(companySettings.business_name)}</td>
+            </tr>
+            <tr>
+              <th className="text-center">사업자번호</th>
+              <td colSpan={2}>
+                {companyValue(companySettings.business_registration_number)}
+              </td>
+            </tr>
+            <tr>
+              <th className="text-center">대표자</th>
+              <td colSpan={2}>{companyValue(companySettings.representative_name)}</td>
+            </tr>
+            <tr>
+              <th className="text-center">전화번호</th>
+              <td colSpan={2}>{companyValue(companySettings.phone)}</td>
+            </tr>
+            <tr>
+              <th className="text-center">FAX</th>
+              <td colSpan={2}>{companyValue(companySettings.fax)}</td>
+            </tr>
+          </tbody>
+        </table>
       </header>
       <section className="mt-7 grid grid-cols-2 gap-8 text-sm">
         <div>
@@ -796,13 +838,6 @@ function PrintEstimate({
               .filter(Boolean)
               .join(" ") || "주소 미정"}
           </p>
-        </div>
-        <div className="text-right">
-          <p>
-            견적번호: Q-{estimate.created_at.slice(0, 10).replaceAll("-", "")}-
-            {estimate.version}차
-          </p>
-          <p>작성일: {dateText(estimate.created_at)}</p>
         </div>
       </section>
       <h2 className="mt-9 text-lg font-bold">{estimate.title}</h2>
@@ -888,17 +923,39 @@ function InquiryDetail({
     newVersion?: boolean;
   } | null>(null);
   const [printing, setPrinting] = useState<EstimateDocument | null>(null);
+  const [companySettings, setCompanySettings] =
+    useState<CompanySettings | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   useEffect(() => setSelectedEstimate(estimates[0]), [inquiry]);
   useEffect(() => {
-    if (!printing) return;
+    let active = true;
+    api
+      .companySettings()
+      .then((settings) => {
+        if (active) setCompanySettings(settings);
+      })
+      .catch(() => {
+        if (active) setCompanySettings(emptyCompanySettings);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (!printing || !companySettings) return;
     const timer = window.setTimeout(() => {
-      window.print();
-      setPrinting(null);
+      const originalTitle = document.title;
+      document.title = "";
+      try {
+        window.print();
+      } finally {
+        document.title = originalTitle;
+        setPrinting(null);
+      }
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [printing]);
+  }, [printing, companySettings]);
   if (editor)
     return (
       <EstimateEditor
@@ -1224,7 +1281,13 @@ function InquiryDetail({
           </div>
         </section>
       </div>
-      {printing && <PrintEstimate inquiry={inquiry} estimate={printing} />}
+      {printing && companySettings && (
+        <PrintEstimate
+          inquiry={inquiry}
+          estimate={printing}
+          companySettings={companySettings}
+        />
+      )}
     </>
   );
 }

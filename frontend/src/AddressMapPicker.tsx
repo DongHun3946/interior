@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
-import { MapPin, X } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { api } from "./api";
+import Modal from "./Modal";
 import NaverMap from "./NaverMap";
 import type { GeocodeResult } from "./types";
 
@@ -48,32 +49,14 @@ export default function AddressMapPicker({
   );
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#10261c]/55 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="지도에서 위치 선택"
+    <Modal
+      title="지도에서 위치 선택"
+      description="지도를 이동·확대한 뒤 등록할 건물이나 도로를 클릭하세요."
+      onClose={onClose}
+      closeDisabled={resolving}
+      maxWidthClass="max-w-4xl"
     >
-      <div className="w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-[#e5eae5] px-5 py-4 sm:px-6">
-          <div>
-            <h3 className="text-xl font-bold text-[#20392c]">
-              지도에서 위치 선택
-            </h3>
-            <p className="mt-1 text-sm text-[#7a877e]">
-              지도를 이동·확대한 뒤 등록할 건물이나 도로를 클릭하세요.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="rounded-xl p-2 text-[#6e7b73] hover:bg-[#f1f4f1]"
-            onClick={onClose}
-            aria-label="닫기"
-          >
-            <X size={20} />
-          </button>
-        </div>
-        <div className="relative">
+      <div className="relative">
           <NaverMap
             className="h-[430px] w-full bg-[#edf2ed] sm:h-[520px]"
             markers={markers}
@@ -125,8 +108,7 @@ export default function AddressMapPicker({
               <MapPin size={15} /> 이 위치로 등록
             </button>
           </div>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

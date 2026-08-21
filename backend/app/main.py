@@ -332,7 +332,7 @@ def delete_project(project_id: UUID, _: User = Depends(require_admin), db: Sessi
 def restore_project(project_id: UUID, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     project = db.scalar(select(Project).where(Project.id == project_id, Project.deleted_at.is_not(None)))
     if not project:
-        raise HTTPException(status_code=404, detail="보관된 현장을 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="삭제된 현장을 찾을 수 없습니다.")
     project.deleted_at = None
     db.commit()
     return project_or_404(db, project.id)
@@ -496,9 +496,13 @@ def delete_image(project_id: UUID, image_id: UUID, _: User = Depends(require_adm
     db.commit()
 
 
-def inquiry_list_item(inquiry: EstimateInquiry) -> InquiryListItem:
+def inquiry_list_item(inquiry: EstimateInquiry, converted_project_archived: bool = False) -> InquiryListItem:
     latest = max(inquiry.estimates, key=lambda item: item.version, default=None)
-    return InquiryListItem.model_validate({**inquiry.__dict__, "latest_estimate": latest})
+    return InquiryListItem.model_validate({
+        **inquiry.__dict__,
+        "converted_project_archived": converted_project_archived,
+        "latest_estimate": latest,
+    })
 
 
 @app.get("/api/v1/estimate-inquiries/stats", response_model=InquiryStats)
@@ -556,7 +560,22 @@ def list_estimate_inquiries(
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).unique().scalars().all()
-    return InquiryList(items=[inquiry_list_item(item) for item in inquiries], page=page, page_size=page_size, total=total)
+    converted_project_ids = [item.converted_project_id for item in inquiries if item.converted_project_id]
+    archived_project_ids = set(db.scalars(
+        select(Project.id).where(
+            Project.id.in_(converted_project_ids),
+            Project.deleted_at.is_not(None),
+        )
+    ).all()) if converted_project_ids else set()
+    return InquiryList(
+        items=[
+            inquiry_list_item(item, item.converted_project_id in archived_project_ids)
+            for item in inquiries
+        ],
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
 
 
 @app.post("/api/v1/estimate-inquiries", response_model=InquiryOut, status_code=201)
@@ -570,7 +589,17 @@ def create_estimate_inquiry(payload: InquiryCreate, user: User = Depends(require
 @app.get("/api/v1/estimate-inquiries/{inquiry_id}", response_model=InquiryOut)
 def get_estimate_inquiry(inquiry_id: UUID, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     inquiry = inquiry_or_404(db, inquiry_id)
-    return InquiryOut.model_validate({**inquiry.__dict__, "estimates": sorted(inquiry.estimates, key=lambda item: item.version, reverse=True)})
+    converted_project_archived = bool(inquiry.converted_project_id and db.scalar(
+        select(Project.id).where(
+            Project.id == inquiry.converted_project_id,
+            Project.deleted_at.is_not(None),
+        )
+    ))
+    return InquiryOut.model_validate({
+        **inquiry.__dict__,
+        "converted_project_archived": converted_project_archived,
+        "estimates": sorted(inquiry.estimates, key=lambda item: item.version, reverse=True),
+    })
 
 
 @app.patch("/api/v1/estimate-inquiries/{inquiry_id}", response_model=InquiryOut)
@@ -662,7 +691,7 @@ def convert_inquiry_to_project(inquiry_id: UUID, payload: InquiryConvert, user: 
             db.add(CostItem(
                 project_id=project.id,
                 category=line.category,
-                item_type=CostItemType.ESTIMATE,
+                item_type=CostItemType.CONTRACT,
                 name=line.name,
                 supply_amount=line.supply_amount,
                 vat_amount=line.vat_amount,

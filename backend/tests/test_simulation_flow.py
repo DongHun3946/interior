@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from backend.app.main import app
 from backend.app.db import engine
+from backend.app.schema_compat import ensure_schema_compatibility
 
 
 class SimulationFlowTest(unittest.TestCase):
@@ -139,6 +140,117 @@ class SimulationFlowTest(unittest.TestCase):
             )
             self.assertEqual(furniture.status_code, 202, furniture.text)
             self.assertEqual(furniture.json()["job_type"], "FURNITURE_3D")
+
+    def test_z_converted_inquiry_reports_archived_project(self):
+        with TestClient(app) as client:
+            login = client.post(
+                "/api/v1/auth/login",
+                data={"username": "simulation-test", "password": "test-password"},
+            )
+            self.assertEqual(login.status_code, 200, login.text)
+            headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+            inquiry = client.post(
+                "/api/v1/estimate-inquiries",
+                json={"customer_name": "삭제 테스트", "customer_phone": "010-1234-5678"},
+                headers=headers,
+            )
+            self.assertEqual(inquiry.status_code, 201, inquiry.text)
+            inquiry_id = inquiry.json()["id"]
+            estimate = client.post(
+                f"/api/v1/estimate-inquiries/{inquiry_id}/estimates",
+                json={
+                    "title": "계약 전환 견적",
+                    "lines": [
+                        {
+                            "category": "OTHER",
+                            "name": "샷시",
+                            "quantity": 1,
+                            "unit": "식",
+                            "unit_price": 12_000_000,
+                        },
+                        {
+                            "category": "FURNITURE",
+                            "name": "싱크대",
+                            "quantity": 1,
+                            "unit": "식",
+                            "unit_price": 3_000_000,
+                        },
+                        {
+                            "category": "WALLPAPER",
+                            "name": "도배",
+                            "quantity": 1,
+                            "unit": "식",
+                            "unit_price": 2_500_000,
+                        },
+                    ],
+                },
+                headers=headers,
+            )
+            self.assertEqual(estimate.status_code, 201, estimate.text)
+            converted = client.post(
+                f"/api/v1/estimate-inquiries/{inquiry_id}/convert",
+                json={"project_title": "삭제 상태 확인 현장"},
+                headers=headers,
+            )
+            self.assertEqual(converted.status_code, 201, converted.text)
+            project_id = converted.json()["id"]
+
+            converted_costs = client.get(
+                f"/api/v1/projects/{project_id}/costs", headers=headers
+            )
+            self.assertTrue(
+                all(item["item_type"] == "CONTRACT" for item in converted_costs.json()["items"])
+            )
+            self.assertEqual(converted_costs.json()["summary"]["final_total"], 19_250_000)
+
+            legacy_cost = client.post(
+                f"/api/v1/projects/{project_id}/costs",
+                json={
+                    "category": "FLOORING",
+                    "item_type": "ESTIMATE",
+                    "name": "장판",
+                    "supply_amount": 2_000_000,
+                    "vat_amount": 200_000,
+                },
+                headers=headers,
+            )
+            self.assertEqual(legacy_cost.status_code, 201, legacy_cost.text)
+            ensure_schema_compatibility(engine)
+            migrated_costs = client.get(
+                f"/api/v1/projects/{project_id}/costs", headers=headers
+            )
+            self.assertTrue(
+                all(item["item_type"] == "CONTRACT" for item in migrated_costs.json()["items"])
+            )
+            self.assertEqual(migrated_costs.json()["summary"]["final_total"], 21_450_000)
+            payment_summary = client.get(
+                f"/api/v1/projects/{project_id}/payments", headers=headers
+            )
+            self.assertEqual(payment_summary.json()["summary"]["receivable_total"], 21_450_000)
+
+            active_inquiry = client.get(
+                f"/api/v1/estimate-inquiries/{inquiry_id}", headers=headers
+            )
+            self.assertFalse(active_inquiry.json()["converted_project_archived"])
+
+            archived = client.delete(f"/api/v1/projects/{project_id}", headers=headers)
+            self.assertEqual(archived.status_code, 204, archived.text)
+
+            archived_inquiry = client.get(
+                f"/api/v1/estimate-inquiries/{inquiry_id}", headers=headers
+            )
+            self.assertTrue(archived_inquiry.json()["converted_project_archived"])
+            inquiry_list = client.get("/api/v1/estimate-inquiries", headers=headers)
+            listed = next(item for item in inquiry_list.json()["items"] if item["id"] == inquiry_id)
+            self.assertTrue(listed["converted_project_archived"])
+
+            restored = client.patch(f"/api/v1/projects/{project_id}/restore", headers=headers)
+            self.assertEqual(restored.status_code, 200, restored.text)
+            restored_inquiry = client.get(
+                f"/api/v1/estimate-inquiries/{inquiry_id}", headers=headers
+            )
+            self.assertFalse(restored_inquiry.json()["converted_project_archived"])
 
 
 if __name__ == "__main__":

@@ -8,7 +8,6 @@ import {
   type ReactNode,
 } from "react";
 import {
-  Archive,
   ArrowUpRight,
   CalendarDays,
   Camera,
@@ -60,6 +59,8 @@ import { showDatePicker } from "./datePicker";
 import MoneyInput from "./MoneyInput";
 import IntegerInput from "./IntegerInput";
 import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
+import ConfirmModal from "./ConfirmModal";
+import Modal from "./Modal";
 
 const statusLabels: Record<ProjectStatus, string> = {
   PLANNING: "예정",
@@ -898,10 +899,10 @@ function ProjectsPage({
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm text-[#758078]">
-            {showArchived ? "보관된 프로젝트를 관리합니다" : "모든 프로젝트를 한곳에서"}
+            {showArchived ? "삭제된 프로젝트를 관리합니다" : "모든 프로젝트를 한곳에서"}
           </p>
           <h2 className="serif mt-1 text-3xl text-[#1b3025]">
-            {showArchived ? "현장 보관함" : "전체 현장"}
+            {showArchived ? "삭제된 현장" : "전체 현장"}
           </h2>
         </div>
         <div className="flex gap-2 self-start sm:self-auto">
@@ -913,8 +914,8 @@ function ProjectsPage({
               setError("");
             }}
           >
-            {showArchived ? <FolderKanban size={17} /> : <Archive size={17} />}
-            {showArchived ? "전체 현장" : "보관함"}
+            {showArchived ? <FolderKanban size={17} /> : <Trash2 size={17} />}
+            {showArchived ? "전체 현장" : "삭제된 현장"}
           </button>
           {!showArchived && (
             <button className="btn-primary" onClick={onCreate}>
@@ -968,10 +969,10 @@ function ProjectsPage({
         </div>
       ) : (
         <Empty
-          title={showArchived ? "보관된 현장이 없습니다" : "등록된 현장이 없습니다"}
+          title={showArchived ? "삭제된 현장이 없습니다" : "등록된 현장이 없습니다"}
           message={
             showArchived
-              ? "보관 처리한 현장이 이곳에 표시됩니다."
+              ? "삭제한 현장이 이곳에 표시됩니다."
               : "첫 번째 프로젝트를 등록하고 사진과 공사비를 기록해보세요."
           }
           action={!showArchived ? (
@@ -1041,32 +1042,14 @@ function MapLocationPicker({
   );
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#10261c]/55 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="지도에서 위치 선택"
+    <Modal
+      title="지도에서 위치 선택"
+      description="지도를 이동·확대한 뒤 등록할 건물이나 도로를 클릭하세요."
+      onClose={onClose}
+      closeDisabled={resolving}
+      maxWidthClass="max-w-4xl"
     >
-      <div className="w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-[#e5eae5] px-5 py-4 sm:px-6">
-          <div>
-            <h3 className="text-xl font-bold text-[#20392c]">
-              지도에서 위치 선택
-            </h3>
-            <p className="mt-1 text-sm text-[#7a877e]">
-              지도를 이동·확대한 뒤 등록할 건물이나 도로를 클릭하세요.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="rounded-xl p-2 text-[#6e7b73] hover:bg-[#f1f4f1]"
-            onClick={onClose}
-            aria-label="닫기"
-          >
-            <X size={20} />
-          </button>
-        </div>
-        <div className="relative">
+      <div className="relative">
           <NaverMap
             className="h-[430px] w-full bg-[#edf2ed] sm:h-[520px]"
             markers={pickerMarkers}
@@ -1118,9 +1101,8 @@ function MapLocationPicker({
               <MapPin size={15} /> 이 위치로 등록
             </button>
           </div>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1472,6 +1454,8 @@ function DetailPage({
   const [uploading, setUploading] = useState(false);
   const [imageToDelete, setImageToDelete] = useState<Image | null>(null);
   const [deletingImage, setDeletingImage] = useState(false);
+  const [projectDeleteOpen, setProjectDeleteOpen] = useState(false);
+  const [deletingProject, setDeletingProject] = useState(false);
   const [costForm, setCostForm] = useState({
     name: "",
     supply_amount: "",
@@ -1553,9 +1537,17 @@ function DetailPage({
     setPayments(await api.payments(id));
   };
   const deleteProject = async () => {
-    if (!confirm("이 현장을 보관 처리할까요?")) return;
-    await api.deleteProject(id);
-    onDeleted();
+    setDeletingProject(true);
+    setError("");
+    try {
+      await api.deleteProject(id);
+      setProjectDeleteOpen(false);
+      onDeleted();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "현장을 삭제하지 못했습니다.");
+    } finally {
+      setDeletingProject(false);
+    }
   };
   const deleteSelectedImage = async () => {
     if (!imageToDelete) return;
@@ -1619,7 +1611,8 @@ function DetailPage({
           </button>
           <button
             className="rounded-xl border border-[#f0dada] p-2.5 text-[#a75d5d] hover:bg-[#fff4f4]"
-            onClick={deleteProject}
+            onClick={() => setProjectDeleteOpen(true)}
+            aria-label="현장 삭제"
           >
             <Trash2 size={16} />
           </button>
@@ -2085,52 +2078,27 @@ function DetailPage({
           </div>
         </section>
       )}
+      {projectDeleteOpen && (
+        <ConfirmModal
+          title="현장을 삭제할까요?"
+          description="삭제된 현장은 삭제된 현장 목록에서 다시 복원할 수 있습니다."
+          confirmLabel={deletingProject ? "삭제 중…" : "삭제"}
+          busy={deletingProject}
+          tone="danger"
+          onClose={() => setProjectDeleteOpen(false)}
+          onConfirm={deleteProject}
+        />
+      )}
       {imageToDelete && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#10261c]/55 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-image-title"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !deletingImage)
-              setImageToDelete(null);
-          }}
-        >
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
-              <Trash2 size={22} />
-            </div>
-            <h3
-              id="delete-image-title"
-              className="mt-5 text-xl font-bold text-[#20392c]"
-            >
-              사진을 삭제할까요?
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-[#7a877e]">
-              삭제한 사진은 현장 사진과 공개 포트폴리오에서 더 이상 표시되지
-              않습니다.
-            </p>
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setImageToDelete(null)}
-                disabled={deletingImage}
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={deleteSelectedImage}
-                disabled={deletingImage}
-              >
-                <Trash2 size={15} />
-                {deletingImage ? "삭제 중…" : "삭제"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          title="사진을 삭제할까요?"
+          description="삭제한 사진은 현장 사진과 공개 포트폴리오에서 더 이상 표시되지 않습니다."
+          confirmLabel={deletingImage ? "삭제 중…" : "삭제"}
+          busy={deletingImage}
+          tone="danger"
+          onClose={() => setImageToDelete(null)}
+          onConfirm={deleteSelectedImage}
+        />
       )}
     </div>
   );

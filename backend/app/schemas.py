@@ -366,6 +366,7 @@ class InquiryListItem(InquiryBase):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     converted_project_id: UUID | None
+    converted_project_archived: bool = False
     created_at: datetime
     updated_at: datetime
     latest_estimate: EstimateOut | None = None
@@ -375,6 +376,7 @@ class InquiryOut(InquiryBase):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     converted_project_id: UUID | None
+    converted_project_archived: bool = False
     created_at: datetime
     updated_at: datetime
     estimates: list[EstimateOut] = Field(default_factory=list)

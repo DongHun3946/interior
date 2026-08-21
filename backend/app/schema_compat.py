@@ -119,3 +119,14 @@ def ensure_schema_compatibility(engine: Engine) -> None:
                 connection.execute(text("UPDATE cost_items SET supply_amount = amount"))
             if "vat_amount" not in cost_columns:
                 connection.execute(text("ALTER TABLE cost_items ADD COLUMN vat_amount BIGINT NOT NULL DEFAULT 0"))
+            if "estimate_inquiries" in tables:
+                connection.execute(
+                    text(
+                        "UPDATE cost_items SET item_type = :contract "
+                        "WHERE item_type = :estimate AND EXISTS ("
+                        "SELECT 1 FROM estimate_inquiries "
+                        "WHERE estimate_inquiries.converted_project_id = cost_items.project_id"
+                        ")"
+                    ),
+                    {"contract": "CONTRACT", "estimate": "ESTIMATE"},
+                )

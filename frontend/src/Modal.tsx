@@ -30,7 +30,7 @@ export default function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#10261c]/55 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -40,22 +40,25 @@ export default function Modal({
       }}
     >
       <div
-        className={`w-full overflow-hidden rounded-3xl bg-white shadow-2xl ${maxWidthClass}`}
+        className={`w-full overflow-hidden rounded-2xl border border-[#dfe4e0] bg-white shadow-[0_12px_32px_rgba(20,32,25,.18)] ${maxWidthClass}`}
       >
-        <div className="flex items-start justify-between border-b border-[#e5eae5] px-5 py-4 sm:px-6">
+        <div className="flex items-start justify-between gap-4 px-5 py-4">
           <div>
-            <h2 id={titleId} className="text-xl font-bold text-[#20392c]">
+            <h2 id={titleId} className="text-lg font-semibold text-[#24382d]">
               {title}
             </h2>
             {description && (
-              <p id={descriptionId} className="mt-1 text-sm text-[#7a877e]">
+              <p
+                id={descriptionId}
+                className="mt-1 text-sm leading-5 text-[#737f78]"
+              >
                 {description}
               </p>
             )}
           </div>
           <button
             type="button"
-            className="rounded-xl p-2 text-[#6e7b73] hover:bg-[#f1f4f1] disabled:cursor-not-allowed disabled:opacity-50"
+            className="-mr-1 rounded-lg p-1.5 text-[#77827b] hover:bg-[#f1f3f1] disabled:cursor-not-allowed disabled:opacity-50"
             onClick={onClose}
             disabled={closeDisabled}
             aria-label="닫기"

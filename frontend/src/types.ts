@@ -231,6 +231,7 @@ export interface EstimateInquiry {
   memo?: string;
   loss_reason?: string;
   converted_project_id?: string;
+  converted_project_archived?: boolean;
   created_at: string;
   updated_at: string;
   estimates?: EstimateDocument[];

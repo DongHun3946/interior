@@ -13,6 +13,7 @@ import {
   Pencil,
   Plus,
   Printer,
+  RotateCcw,
   Search,
   Trash2,
   UserRoundPlus,
@@ -24,6 +25,7 @@ import MoneyInput from "./MoneyInput";
 import IntegerInput from "./IntegerInput";
 import AddressMapPicker from "./AddressMapPicker";
 import Modal from "./Modal";
+import ConfirmModal from "./ConfirmModal";
 import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
 import type {
   CompanySettings,
@@ -946,6 +948,11 @@ function InquiryDetail({
     planned_end_date: string;
   } | null>(null);
   const [convertError, setConvertError] = useState("");
+  const [projectActionError, setProjectActionError] = useState("");
+  const [lossReasonForm, setLossReasonForm] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState("");
+  const [deleteInquiryOpen, setDeleteInquiryOpen] = useState(false);
+  const [deleteInquiryError, setDeleteInquiryError] = useState("");
   useEffect(() => setSelectedEstimate(estimates[0]), [inquiry]);
   useEffect(() => {
     let active = true;
@@ -992,24 +999,31 @@ function InquiryDetail({
         }}
       />
     );
-  const updateStatus = async (status: InquiryStatus) => {
+  const saveStatus = async (status: InquiryStatus, lossReason?: string) => {
     setBusy(true);
+    setStatusError("");
     try {
-      const lossReason =
-        status === "LOST"
-          ? window.prompt(
-              "미계약 사유를 입력해 주세요.",
-              inquiry.loss_reason || "",
-            )
-          : null;
       await api.updateInquiry(inquiry.id, {
         status,
         ...(status === "LOST" ? { loss_reason: lossReason } : {}),
       });
       await onReload();
+      setLossReasonForm(null);
+    } catch (e) {
+      setStatusError(
+        e instanceof Error ? e.message : "진행 상태를 변경하지 못했습니다.",
+      );
     } finally {
       setBusy(false);
     }
+  };
+  const updateStatus = async (status: InquiryStatus) => {
+    if (status === "LOST") {
+      setStatusError("");
+      setLossReasonForm(inquiry.loss_reason || "");
+      return;
+    }
+    await saveStatus(status);
   };
   const openConvertModal = () => {
     setConvertError("");
@@ -1043,6 +1057,36 @@ function InquiryDetail({
     } catch (e) {
       setConvertError(
         e instanceof Error ? e.message : "현장으로 전환하지 못했습니다.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  const restoreConvertedProject = async () => {
+    if (!inquiry.converted_project_id) return;
+    setBusy(true);
+    setProjectActionError("");
+    try {
+      await api.restoreProject(inquiry.converted_project_id);
+      onOpenProject(inquiry.converted_project_id);
+    } catch (e) {
+      setProjectActionError(
+        e instanceof Error ? e.message : "삭제된 현장을 복원하지 못했습니다.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  const deleteInquiry = async () => {
+    setBusy(true);
+    setDeleteInquiryError("");
+    try {
+      await api.deleteInquiry(inquiry.id);
+      setDeleteInquiryOpen(false);
+      onDeleted();
+    } catch (e) {
+      setDeleteInquiryError(
+        e instanceof Error ? e.message : "견적 문의를 삭제하지 못했습니다.",
       );
     } finally {
       setBusy(false);
@@ -1086,8 +1130,10 @@ function InquiryDetail({
           )}
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             <div>
-              <label className="label">진행 상태</label>
-              <div className="w-full md:w-1/2">
+              <label className="mb-1.5 block text-sm font-semibold text-[#718078]">
+                진행 상태
+              </label>
+              <div className="w-full md:w-1/2 [&_button]:text-base">
                 <InquiryStatusSelect
                   disabled={busy || inquiry.status === "CONTRACTED"}
                   value={inquiry.status}
@@ -1096,14 +1142,18 @@ function InquiryDetail({
               </div>
             </div>
             <div>
-              <p className="label">희망 예산</p>
-              <p className="pt-2 text-sm font-semibold">
+              <p className="mb-1.5 block text-sm font-semibold text-[#718078]">
+                희망 예산
+              </p>
+              <p className="pt-2 text-base font-semibold">
                 {inquiry.desired_budget ? won(inquiry.desired_budget) : "미정"}
               </p>
             </div>
             <div>
-              <p className="label">평수·유형</p>
-              <p className="pt-2 text-sm font-semibold">
+              <p className="mb-1.5 block text-sm font-semibold text-[#718078]">
+                평수·유형
+              </p>
+              <p className="pt-2 text-base font-semibold">
                 {pyeong(inquiry.area_pyeong)} ·{" "}
                 {inquiry.housing_type || "유형 미정"}
               </p>
@@ -1290,19 +1340,44 @@ function InquiryDetail({
 
         <section className="panel flex flex-wrap items-center justify-between gap-4 p-5">
           <div>
-            <h3 className="font-bold text-[#294534]">상담 결과 처리</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-bold text-[#294534]">상담 결과 처리</h3>
+              {inquiry.converted_project_archived && (
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                  생성 현장 삭제됨
+                </span>
+              )}
+            </div>
             <p className="mt-1 text-sm text-[#7a877e]">
-              계약되면 고객 정보와 최신 견적 항목으로 현장이 자동 생성됩니다.
+              {inquiry.converted_project_archived
+                ? "생성된 현장이 삭제되어 있습니다. 복원하면 현장 관리에서 다시 확인할 수 있습니다."
+                : "계약되면 고객 정보와 최신 견적 항목으로 현장이 자동 생성됩니다."}
             </p>
+            {projectActionError && (
+              <p className="mt-2 text-sm font-medium text-rose-700">
+                {projectActionError}
+              </p>
+            )}
           </div>
           <div className="flex gap-2">
             {inquiry.converted_project_id ? (
-              <button
-                className="btn-primary"
-                onClick={() => onOpenProject(inquiry.converted_project_id!)}
-              >
-                <CheckCircle2 size={16} /> 생성된 현장 열기
-              </button>
+              inquiry.converted_project_archived ? (
+                <button
+                  className="btn-primary"
+                  disabled={busy}
+                  onClick={restoreConvertedProject}
+                >
+                  <RotateCcw size={16} />
+                  {busy ? "복원 중…" : "현장 복원 후 열기"}
+                </button>
+              ) : (
+                <button
+                  className="btn-primary"
+                  onClick={() => onOpenProject(inquiry.converted_project_id!)}
+                >
+                  <CheckCircle2 size={16} /> 생성된 현장 열기
+                </button>
+              )
             ) : (
               <button
                 className="btn-primary"
@@ -1314,14 +1389,12 @@ function InquiryDetail({
             )}
             <button
               className="btn-secondary text-rose-700"
-              onClick={async () => {
-                if (window.confirm("이 견적 문의를 보관 처리할까요?")) {
-                  await api.deleteInquiry(inquiry.id);
-                  onDeleted();
-                }
+              onClick={() => {
+                setDeleteInquiryError("");
+                setDeleteInquiryOpen(true);
               }}
             >
-              <Trash2 size={15} /> 보관
+              <Trash2 size={15} /> 삭제
             </button>
           </div>
         </section>
@@ -1414,6 +1487,56 @@ function InquiryDetail({
             </div>
           </form>
         </Modal>
+      )}
+      {lossReasonForm !== null && (
+        <ConfirmModal
+          title="미계약으로 처리할까요?"
+          description="미계약 사유를 입력한 뒤 확인해 주세요."
+          confirmLabel={busy ? "처리 중…" : "확인"}
+          busy={busy}
+          onClose={() => {
+            setLossReasonForm(null);
+            setStatusError("");
+          }}
+          onConfirm={() => saveStatus("LOST", lossReasonForm.trim())}
+        >
+          <label className="label" htmlFor="loss-reason">
+            미계약 사유
+          </label>
+          <textarea
+            id="loss-reason"
+            className="field min-h-24 resize-y"
+            value={lossReasonForm}
+            onChange={(event) => setLossReasonForm(event.target.value)}
+            placeholder="예: 예산 조율 실패, 일정 변경"
+            autoFocus
+          />
+          {statusError && (
+            <p className="mt-2 text-sm font-medium text-rose-700">
+              {statusError}
+            </p>
+          )}
+        </ConfirmModal>
+      )}
+      {deleteInquiryOpen && (
+        <ConfirmModal
+          title="견적 문의를 삭제할까요?"
+          description="삭제한 견적 문의는 목록에서 더 이상 표시되지 않습니다."
+          confirmLabel={busy ? "삭제 중…" : "삭제"}
+          busy={busy}
+          tone="danger"
+          onClose={() => {
+            setDeleteInquiryOpen(false);
+            setDeleteInquiryError("");
+          }}
+          onConfirm={deleteInquiry}
+        >
+          {deleteInquiryError && (
+            <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {deleteInquiryError}
+            </p>
+          )}
+        </ConfirmModal>
       )}
       {printing && companySettings && (
         createPortal(
@@ -1609,8 +1732,10 @@ export default function EstimateInquiriesPage({
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-[#53665a]">
-                    {item.address || "주소 미등록"}
+                  <p className="text-sm text-[#344b3d]">
+                    {[item.address, item.address_detail]
+                      .filter(Boolean)
+                      .join(", ") || "주소 미등록"}
                   </p>
                   <p className="mt-1 text-xs text-[#8b978f]">
                     {pyeong(item.area_pyeong)} ·{" "}

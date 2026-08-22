@@ -11,6 +11,7 @@ os.environ["ADMIN_LOGIN_ID"] = "simulation-test"
 os.environ["ADMIN_PASSWORD"] = "test-password"
 
 from fastapi.testclient import TestClient
+from sqlalchemy import inspect
 
 from backend.app.main import app
 from backend.app.db import engine
@@ -143,6 +144,12 @@ class SimulationFlowTest(unittest.TestCase):
 
     def test_z_converted_inquiry_reports_archived_project(self):
         with TestClient(app) as client:
+            payment_columns = {
+                column["name"] for column in inspect(engine).get_columns("payments")
+            }
+            self.assertNotIn("status", payment_columns)
+            self.assertNotIn("due_date", payment_columns)
+
             login = client.post(
                 "/api/v1/auth/login",
                 data={"username": "simulation-test", "password": "test-password"},
@@ -228,6 +235,25 @@ class SimulationFlowTest(unittest.TestCase):
                 f"/api/v1/projects/{project_id}/payments", headers=headers
             )
             self.assertEqual(payment_summary.json()["summary"]["receivable_total"], 21_450_000)
+
+            payment = client.post(
+                f"/api/v1/projects/{project_id}/payments",
+                json={
+                    "stage": "DEPOSIT",
+                    "method": "BANK_TRANSFER",
+                    "supply_amount": 5_000_000,
+                    "paid_at": "2026-08-21T10:00:00+09:00",
+                },
+                headers=headers,
+            )
+            self.assertEqual(payment.status_code, 201, payment.text)
+            self.assertNotIn("status", payment.json())
+            self.assertNotIn("due_date", payment.json())
+            payment_summary = client.get(
+                f"/api/v1/projects/{project_id}/payments", headers=headers
+            )
+            self.assertEqual(payment_summary.json()["summary"]["paid_total"], 5_000_000)
+            self.assertEqual(payment_summary.json()["summary"]["receivable_total"], 16_450_000)
 
             active_inquiry = client.get(
                 f"/api/v1/estimate-inquiries/{inquiry_id}", headers=headers

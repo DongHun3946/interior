@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import CostCategory, CostItemType, ImageCategory, InquiryStatus, PaymentMethod, PaymentStage, PaymentStatus, ProjectStatus, UserRole
+from .models import CostCategory, CostItemType, ImageCategory, InquiryStatus, PaymentMethod, PaymentStage, ProjectStatus, UserRole
 
 
 class UserOut(BaseModel):
@@ -134,10 +134,8 @@ class CostOut(CostCreate):
 class PaymentCreate(BaseModel):
     stage: PaymentStage = PaymentStage.OTHER
     method: PaymentMethod = PaymentMethod.BANK_TRANSFER
-    status: PaymentStatus = PaymentStatus.SCHEDULED
     supply_amount: int = Field(ge=0, le=9_000_000_000_000)
     vat_amount: int = Field(default=0, ge=0, le=9_000_000_000_000)
-    due_date: date | None = None
     paid_at: datetime | None = None
     memo: str | None = None
 
@@ -145,10 +143,8 @@ class PaymentCreate(BaseModel):
 class PaymentUpdate(BaseModel):
     stage: PaymentStage | None = None
     method: PaymentMethod | None = None
-    status: PaymentStatus | None = None
     supply_amount: int | None = Field(default=None, ge=0, le=9_000_000_000_000)
     vat_amount: int | None = Field(default=None, ge=0, le=9_000_000_000_000)
-    due_date: date | None = None
     paid_at: datetime | None = None
     memo: str | None = None
 

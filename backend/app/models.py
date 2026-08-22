@@ -65,13 +65,6 @@ class PaymentMethod(str, enum.Enum):
     OTHER = "OTHER"
 
 
-class PaymentStatus(str, enum.Enum):
-    SCHEDULED = "SCHEDULED"
-    PAID = "PAID"
-    CANCELLED = "CANCELLED"
-    REFUNDED = "REFUNDED"
-
-
 class InquiryStatus(str, enum.Enum):
     NEW = "NEW"
     CONSULTATION_SCHEDULED = "CONSULTATION_SCHEDULED"
@@ -249,11 +242,9 @@ class Payment(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), index=True)
     stage: Mapped[PaymentStage] = mapped_column(Enum(PaymentStage), default=PaymentStage.OTHER)
     method: Mapped[PaymentMethod] = mapped_column(Enum(PaymentMethod), default=PaymentMethod.BANK_TRANSFER)
-    status: Mapped[PaymentStatus] = mapped_column(Enum(PaymentStatus), default=PaymentStatus.SCHEDULED, index=True)
     supply_amount: Mapped[int] = mapped_column(BigInteger, default=0)
     vat_amount: Mapped[int] = mapped_column(BigInteger, default=0)
     total_amount: Mapped[int] = mapped_column(BigInteger, default=0)
-    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     memo: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)

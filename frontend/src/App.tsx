@@ -45,7 +45,6 @@ import type {
   Payment,
   PaymentMethod,
   PaymentStage,
-  PaymentStatus,
   PaymentSummary,
   CostSummary,
   GeocodeResult,
@@ -104,12 +103,6 @@ const paymentMethodOptions: DropdownOption[] = [
   { value: "CARD", label: "카드" },
   { value: "OTHER", label: "기타" },
 ];
-const paymentStatusOptions: DropdownOption[] = [
-  { value: "SCHEDULED", label: "입금 예정", dotClass: "bg-blue-500" },
-  { value: "PAID", label: "입금 완료", dotClass: "bg-emerald-500" },
-  { value: "CANCELLED", label: "취소", dotClass: "bg-slate-400" },
-  { value: "REFUNDED", label: "환불", dotClass: "bg-rose-500" },
-];
 const money = (value: number) =>
   new Intl.NumberFormat("ko-KR").format(value) + "원";
 const shortDate = (date?: string) =>
@@ -127,11 +120,13 @@ const fullDate = (date?: string) =>
         day: "numeric",
       })
     : "미정";
+const dateInputValue = (date = new Date()) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
 function Badge({ status }: { status: ProjectStatus }) {
   return (
     <span
-      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyles[status]}`}
+      className={`rounded-full px-2.5 py-1 text-[13px] font-bold ${statusStyles[status]}`}
     >
       {statusLabels[status]}
     </span>
@@ -1464,9 +1459,8 @@ function DetailPage({
   const [paymentForm, setPaymentForm] = useState({
     stage: "DEPOSIT" as PaymentStage,
     method: "BANK_TRANSFER" as PaymentMethod,
-    status: "SCHEDULED" as PaymentStatus,
     supply_amount: "",
-    due_date: "",
+    paid_date: dateInputValue(),
     memo: "",
   });
   const load = () => {
@@ -1523,15 +1517,17 @@ function DetailPage({
     event.preventDefault();
     if (!paymentForm.supply_amount) return;
     await api.createPayment(id, {
-      ...paymentForm,
+      stage: paymentForm.stage,
+      method: paymentForm.method,
       supply_amount: Number(paymentForm.supply_amount),
       vat_amount: 0,
-      due_date: paymentForm.due_date || null,
-      paid_at: paymentForm.status === "PAID" ? new Date().toISOString() : null,
+      paid_at: new Date(`${paymentForm.paid_date}T00:00:00`).toISOString(),
+      memo: paymentForm.memo,
     });
     setPaymentForm({
       ...paymentForm,
       supply_amount: "",
+      paid_date: dateInputValue(),
       memo: "",
     });
     setPayments(await api.payments(id));
@@ -1578,6 +1574,7 @@ function DetailPage({
         현장 정보를 불러오는 중입니다…
       </div>
     );
+  const paidPayments = payments?.items || [];
   return (
     <div className="space-y-6 p-5 sm:p-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -1645,7 +1642,7 @@ function DetailPage({
               </div>
               <div>
                 <p className="label">면적</p>
-                <p className="font-semibold text-[#345344]">
+                <p className="value-text">
                   {project.area_pyeong
                     ? `${Math.round(Number(project.area_pyeong))}평`
                     : "미등록"}
@@ -1653,7 +1650,7 @@ function DetailPage({
               </div>
               <div>
                 <p className="label">공사 기간</p>
-                <p className="font-semibold text-[#345344]">
+                <p className="value-text">
                   {fullDate(project.planned_start_date)} ~{" "}
                   {fullDate(
                     project.actual_end_date || project.planned_end_date,
@@ -1662,14 +1659,14 @@ function DetailPage({
               </div>
               <div>
                 <p className="label">주거 유형</p>
-                <p className="font-semibold text-[#345344]">
+                <p className="value-text">
                   {project.housing_type || "미등록"}
                 </p>
               </div>
             </div>
             <div className="mt-7 border-t border-[#edf0ec] pt-5">
               <p className="label">공사 범위 / 메모</p>
-              <p className="whitespace-pre-wrap text-sm leading-7 text-[#68766d]">
+              <p className="value-copy whitespace-pre-wrap">
                 {project.description || "등록된 메모가 없습니다."}
               </p>
             </div>
@@ -1692,7 +1689,7 @@ function DetailPage({
             </div>
             <div className="p-5">
               <p className="label">공개 공사 범위</p>
-              <p className="text-sm leading-6 text-[#68766d]">
+              <p className="value-copy">
                 {project.description || "아직 등록된 공사 범위가 없습니다."}
               </p>
             </div>
@@ -1921,15 +1918,15 @@ function DetailPage({
               <div className="panel overflow-hidden">
                 <div className="border-b border-[#edf0ec] p-5">
                   <h3 className="font-semibold text-[#294534]">
-                    입금 일정·이력
+                    입금 내역
                   </h3>
                   <p className="mt-1 text-xs text-[#8a968e]">
-                    예정, 입금, 취소, 환불을 모두 남길 수 있습니다.
+                    실제 입금이 완료된 내역을 확인할 수 있습니다.
                   </p>
                 </div>
-                {payments?.items.length ? (
+                {paidPayments.length ? (
                   <div className="divide-y divide-[#edf0ec]">
-                    {payments.items.map((payment) => (
+                    {paidPayments.map((payment) => (
                       <div key={payment.id} className="p-5">
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -1944,7 +1941,7 @@ function DetailPage({
                               }
                             </p>
                             <p className="mt-1 text-xs text-[#8a968e]">
-                              납기 {payment.due_date || "미지정"} ·{" "}
+                              입금일 {shortDate(payment.paid_at)} ·{" "}
                               {
                                 {
                                   BANK_TRANSFER: "계좌이체",
@@ -1963,23 +1960,6 @@ function DetailPage({
                             <p className="text-sm font-semibold text-[#345344]">
                               {money(payment.total_amount)}
                             </p>
-                            <DropdownSelect
-                              className="mt-2 min-w-28"
-                              value={payment.status}
-                              options={paymentStatusOptions}
-                              compact
-                              ariaLabel="입금 상태"
-                              onChange={async (status) => {
-                                await api.updatePayment(id, payment.id, {
-                                  status,
-                                  paid_at:
-                                    status === "PAID"
-                                      ? new Date().toISOString()
-                                      : null,
-                                });
-                                setPayments(await api.payments(id));
-                              }}
-                            />
                           </div>
                         </div>
                         <button
@@ -1996,12 +1976,12 @@ function DetailPage({
                   </div>
                 ) : (
                   <p className="p-10 text-center text-sm text-[#9aa49d]">
-                    등록된 입금 일정이 없습니다.
+                    등록된 입금 내역이 없습니다.
                   </p>
                 )}
               </div>
               <form className="panel p-5" onSubmit={addPayment}>
-                <h3 className="font-semibold text-[#294534]">입금 일정 추가</h3>
+                <h3 className="font-semibold text-[#294534]">입금 내역 추가</h3>
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <DropdownSelect
                     value={paymentForm.stage}
@@ -2027,7 +2007,7 @@ function DetailPage({
                   />
                   <MoneyInput
                     className="field col-span-2"
-                    placeholder="입금 예정액"
+                    placeholder="입금액"
                     value={paymentForm.supply_amount}
                     onValueChange={(value) =>
                       setPaymentForm({
@@ -2037,29 +2017,25 @@ function DetailPage({
                     }
                     required
                   />
-                  <input
-                    className="field"
-                    type="date"
-                    onClick={showDatePicker}
-                    value={paymentForm.due_date}
-                    onChange={(e) =>
-                      setPaymentForm({
-                        ...paymentForm,
-                        due_date: e.target.value,
-                      })
-                    }
-                  />
-                  <DropdownSelect
-                    value={paymentForm.status}
-                    options={paymentStatusOptions}
-                    ariaLabel="입금 상태"
-                    onChange={(value) =>
-                      setPaymentForm({
-                        ...paymentForm,
-                        status: value as PaymentStatus,
-                      })
-                    }
-                  />
+                  <div className="col-span-2">
+                    <label className="label" htmlFor="payment-date">
+                      입금일
+                    </label>
+                    <input
+                      id="payment-date"
+                      className="field"
+                      type="date"
+                      onClick={showDatePicker}
+                      value={paymentForm.paid_date}
+                      onChange={(e) =>
+                        setPaymentForm({
+                          ...paymentForm,
+                          paid_date: e.target.value,
+                        })
+                      }
+                      required
+                    />
+                  </div>
                 </div>
                 <input
                   className="field mt-2"
@@ -2071,7 +2047,7 @@ function DetailPage({
                 />
                 <button className="btn-primary mt-4 w-full">
                   <Plus size={15} />
-                  입금 일정 등록
+                  입금 내역 등록
                 </button>
               </form>
             </div>

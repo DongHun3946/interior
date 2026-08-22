@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .core.config import get_settings
 from .db import Base, engine, get_db
-from .models import CompanySettings, CostItem, CostItemType, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, PaymentStatus, Project, ProjectImage, ProjectStatus, ProjectStatusHistory, User, UserRole
+from .models import CompanySettings, CostItem, CostItemType, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, Project, ProjectImage, ProjectStatus, ProjectStatusHistory, User, UserRole
 from .schemas import CompanySettingsOut, CompanySettingsUpdate, CostCreate, CostOut, CostSummary, CostUpdate, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
 from .security import create_access_token, get_current_user, hash_password, verify_password
 from .schema_compat import ensure_schema_compatibility
@@ -110,8 +110,8 @@ def project_finance_summary(db: Session, project_id: UUID) -> PaymentSummary:
     final_supply = sum((-1 if item.item_type == CostItemType.DISCOUNT else 1) * item.supply_amount for item in final_costs)
     final_vat = sum((-1 if item.item_type == CostItemType.DISCOUNT else 1) * item.vat_amount for item in final_costs)
     payments = db.scalars(select(Payment).where(Payment.project_id == project_id, Payment.deleted_at.is_(None))).all()
-    paid_supply = sum((1 if item.status == PaymentStatus.PAID else -1 if item.status == PaymentStatus.REFUNDED else 0) * item.supply_amount for item in payments)
-    paid_vat = sum((1 if item.status == PaymentStatus.PAID else -1 if item.status == PaymentStatus.REFUNDED else 0) * item.vat_amount for item in payments)
+    paid_supply = sum(item.supply_amount for item in payments)
+    paid_vat = sum(item.vat_amount for item in payments)
     return PaymentSummary(
         final_supply=final_supply,
         final_vat=final_vat,
@@ -404,7 +404,7 @@ def delete_cost(project_id: UUID, cost_id: UUID, _: User = Depends(require_admin
 @app.get("/api/v1/projects/{project_id}/payments", response_model=dict)
 def list_payments(project_id: UUID, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     project_or_404(db, project_id)
-    payments = db.scalars(select(Payment).where(Payment.project_id == project_id, Payment.deleted_at.is_(None)).order_by(Payment.due_date.asc().nullslast(), Payment.created_at.desc())).all()
+    payments = db.scalars(select(Payment).where(Payment.project_id == project_id, Payment.deleted_at.is_(None)).order_by(Payment.paid_at.desc().nullslast(), Payment.created_at.desc())).all()
     return {"items": [PaymentOut.model_validate(item) for item in payments], "summary": project_finance_summary(db, project_id)}
 
 
@@ -412,6 +412,7 @@ def list_payments(project_id: UUID, _: User = Depends(require_admin), db: Sessio
 def create_payment(project_id: UUID, payload: PaymentCreate, user: User = Depends(require_admin), db: Session = Depends(get_db)):
     project_or_404(db, project_id)
     values = payload.model_dump()
+    values["paid_at"] = values["paid_at"] or datetime.now(timezone.utc)
     payment = Payment(project_id=project_id, created_by=user.id, total_amount=values["supply_amount"] + values["vat_amount"], **values)
     db.add(payment)
     db.commit()

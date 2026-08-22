@@ -17,6 +17,7 @@ REMOVED_COLUMNS = {
         "next_contact_date",
     },
     "estimate_documents": {"status", "valid_until"},
+    "payments": {"status", "due_date"},
 }
 
 
@@ -95,10 +96,36 @@ def _drop_removed_columns(engine: Engine) -> None:
                 )
 
 
+def _migrate_payment_history(engine: Engine) -> None:
+    inspector = inspect(engine)
+    if "payments" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("payments")}
+    if "status" not in columns:
+        return
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE payments SET paid_at = COALESCE(paid_at, created_at) "
+                "WHERE status = 'PAID'"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE payments SET deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP) "
+                "WHERE status != 'PAID' OR status IS NULL"
+            )
+        )
+
+
 def ensure_schema_compatibility(engine: Engine) -> None:
     """Apply the small in-place schema migrations used by the local application."""
     _migrate_user_login_id(engine)
+    _migrate_payment_history(engine)
     _drop_removed_columns(engine)
+    if engine.dialect.name == "postgresql":
+        with engine.begin() as connection:
+            connection.execute(text("DROP TYPE IF EXISTS paymentstatus"))
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
     with engine.begin() as connection:

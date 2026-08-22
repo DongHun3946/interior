@@ -90,17 +90,14 @@ export interface CostSummary {
 }
 export type PaymentStage = "DEPOSIT" | "INTERIM" | "BALANCE" | "OTHER";
 export type PaymentMethod = "BANK_TRANSFER" | "CASH" | "CARD" | "OTHER";
-export type PaymentStatus = "SCHEDULED" | "PAID" | "CANCELLED" | "REFUNDED";
 export interface Payment {
   id: string;
   project_id: string;
   stage: PaymentStage;
   method: PaymentMethod;
-  status: PaymentStatus;
   supply_amount: number;
   vat_amount: number;
   total_amount: number;
-  due_date?: string;
   paid_at?: string;
   memo?: string;
   created_at: string;

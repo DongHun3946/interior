@@ -31,6 +31,8 @@ button { cursor: pointer; }
   .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-[#18372b] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#285744] disabled:cursor-not-allowed disabled:opacity-50; }
   .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-[#dfe5df] bg-white px-4 py-2.5 text-sm font-semibold text-[#345344] transition hover:bg-[#f3f7f2]; }
   .field { @apply w-full rounded-xl border border-[#c9d3cb] bg-white px-3.5 py-3 text-sm text-[#22352b] outline-none transition placeholder:text-[#929f96] hover:border-[#aebdb2] focus:border-[#628b72] focus:ring-2 focus:ring-[#d9e9dd]; }
-  .label { @apply mb-1.5 block text-xs font-semibold text-[#718078]; }
+  .label { @apply mb-1.5 block text-[13px] font-semibold text-[#69766e]; }
+  .value-text { @apply text-[15px] font-bold leading-6 text-[#263f31]; }
+  .value-copy { @apply text-sm font-medium leading-7 text-[#465a4d]; }
   .required-mark { @apply text-red-500; }
 }

@@ -1145,7 +1145,7 @@ function InquiryDetail({
               <p className="mb-1.5 block text-sm font-semibold text-[#718078]">
                 희망 예산
               </p>
-              <p className="pt-2 text-base font-semibold">
+              <p className="value-text pt-2 text-base">
                 {inquiry.desired_budget ? won(inquiry.desired_budget) : "미정"}
               </p>
             </div>
@@ -1153,7 +1153,7 @@ function InquiryDetail({
               <p className="mb-1.5 block text-sm font-semibold text-[#718078]">
                 평수·유형
               </p>
-              <p className="pt-2 text-base font-semibold">
+              <p className="value-text pt-2 text-base">
                 {pyeong(inquiry.area_pyeong)} ·{" "}
                 {inquiry.housing_type || "유형 미정"}
               </p>
@@ -1163,13 +1163,13 @@ function InquiryDetail({
             <div className="mt-5 grid gap-4 border-t-2 border-[#d8e1da] pt-5 md:grid-cols-2">
               <div>
                 <p className="label">공사 요청사항</p>
-                <p className="whitespace-pre-wrap text-sm leading-6 text-[#53645a]">
+                <p className="value-copy whitespace-pre-wrap">
                   {inquiry.request_details || "-"}
                 </p>
               </div>
               <div>
                 <p className="label">내부 메모</p>
-                <p className="whitespace-pre-wrap text-sm leading-6 text-[#53645a]">
+                <p className="value-copy whitespace-pre-wrap">
                   {inquiry.memo || "-"}
                 </p>
               </div>
@@ -1673,7 +1673,7 @@ export default function EstimateInquiriesPage({
               <div className={`inline-flex rounded-xl p-2 ${tone}`}>
                 <Icon size={17} />
               </div>
-              <p className="mt-3 text-xs font-semibold text-[#87938b]">
+              <p className="mt-3 text-[13px] font-semibold text-[#75827a]">
                 {label}
               </p>
               <p className="mt-1 text-2xl font-bold text-[#18372b]">{value}</p>

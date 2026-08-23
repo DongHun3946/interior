@@ -43,6 +43,7 @@ class ProjectBase(BaseModel):
     area_pyeong: Decimal | None = Field(default=None, ge=0)
     work_scope: str | None = None
     description: str | None = None
+    internal_memo: str | None = None
     address: str = Field(min_length=1, max_length=300)
     address_detail: str | None = None
     latitude: Decimal | None = Field(default=None, ge=-90, le=90)
@@ -67,6 +68,7 @@ class ProjectUpdate(BaseModel):
     area_pyeong: Decimal | None = Field(default=None, ge=0)
     work_scope: str | None = None
     description: str | None = None
+    internal_memo: str | None = None
     address: str | None = None
     address_detail: str | None = None
     latitude: Decimal | None = Field(default=None, ge=-90, le=90)
@@ -103,6 +105,20 @@ class ImageUpdate(BaseModel):
     sort_order: int | None = Field(default=None, ge=0)
     is_cover: bool | None = None
     is_public: bool | None = None
+
+
+class AdminImageOut(ImageOut):
+    project_title: str
+    project_status: ProjectStatus
+    project_address: str
+
+
+class AdminImageList(BaseModel):
+    items: list[AdminImageOut]
+    total: int
+    page: int
+    page_size: int
+    classifications: list[str] = Field(default_factory=list)
 
 
 class CostCreate(BaseModel):
@@ -177,6 +193,7 @@ class StatusHistoryOut(BaseModel):
 class ProjectOut(ProjectBase):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
+    contract_estimate_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
     images: list[ImageOut] = Field(default_factory=list)

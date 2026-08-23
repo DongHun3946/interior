@@ -69,6 +69,32 @@ class UserLoginIdMigrationTest(unittest.TestCase):
             finally:
                 engine.dispose()
 
+    def test_project_contract_estimate_column_is_added(self):
+        with tempfile.TemporaryDirectory(prefix="interior-project-migration-") as temp_dir:
+            database_path = Path(temp_dir, "legacy.db").as_posix()
+            engine = create_engine(f"sqlite:///{database_path}")
+            try:
+                with engine.begin() as connection:
+                    connection.execute(
+                        text(
+                            "CREATE TABLE projects ("
+                            "id VARCHAR(36) PRIMARY KEY, "
+                            "title VARCHAR(200) NOT NULL"
+                            ")"
+                        )
+                    )
+
+                ensure_schema_compatibility(engine)
+
+                columns = {
+                    column["name"]
+                    for column in inspect(engine).get_columns("projects")
+                }
+                self.assertIn("contract_estimate_id", columns)
+                self.assertIn("internal_memo", columns)
+            finally:
+                engine.dispose()
+
 
 if __name__ == "__main__":
     unittest.main()

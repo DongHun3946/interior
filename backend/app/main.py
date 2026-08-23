@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 from .core.config import get_settings
 from .db import Base, engine, get_db
 from .models import CompanySettings, CostItem, CostItemType, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, Project, ProjectImage, ProjectStatus, ProjectStatusHistory, User, UserRole
-from .schemas import CompanySettingsOut, CompanySettingsUpdate, CostCreate, CostOut, CostSummary, CostUpdate, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
+from .schemas import AdminImageList, AdminImageOut, CompanySettingsOut, CompanySettingsUpdate, CostCreate, CostOut, CostSummary, CostUpdate, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
 from .security import create_access_token, get_current_user, hash_password, verify_password
 from .schema_compat import ensure_schema_compatibility
 from .storage import save_upload
@@ -425,6 +425,78 @@ def upload_image(project_id: UUID, category: ImageCategory = Query(ImageCategory
     return image
 
 
+@app.get("/api/v1/images", response_model=AdminImageList)
+def list_all_images(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(48, ge=1, le=100),
+    project_id: UUID | None = None,
+    classification: str | None = None,
+    is_public: bool | None = None,
+    q: str | None = None,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    conditions = [
+        ProjectImage.deleted_at.is_(None),
+        Project.deleted_at.is_(None),
+    ]
+    if project_id:
+        conditions.append(ProjectImage.project_id == project_id)
+    if classification == "__unclassified__":
+        conditions.append(or_(ProjectImage.classification.is_(None), ProjectImage.classification == ""))
+    elif classification:
+        conditions.append(ProjectImage.classification == classification)
+    if is_public is not None:
+        conditions.append(ProjectImage.is_public.is_(is_public))
+    if q and q.strip():
+        keyword = f"%{q.strip()}%"
+        conditions.append(or_(Project.title.ilike(keyword), ProjectImage.original_filename.ilike(keyword), ProjectImage.classification.ilike(keyword)))
+
+    total = db.scalar(
+        select(func.count(ProjectImage.id))
+        .join(Project, Project.id == ProjectImage.project_id)
+        .where(*conditions)
+    ) or 0
+    rows = db.execute(
+        select(ProjectImage, Project.title, Project.status, Project.address)
+        .join(Project, Project.id == ProjectImage.project_id)
+        .where(*conditions)
+        .order_by(ProjectImage.created_at.desc(), ProjectImage.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    classifications = db.scalars(
+        select(ProjectImage.classification)
+        .join(Project, Project.id == ProjectImage.project_id)
+        .where(
+            ProjectImage.deleted_at.is_(None),
+            Project.deleted_at.is_(None),
+            ProjectImage.classification.is_not(None),
+            ProjectImage.classification != "",
+        )
+        .distinct()
+        .order_by(ProjectImage.classification)
+    ).all()
+    items = [
+        AdminImageOut.model_validate(
+            {
+                **image.__dict__,
+                "project_title": project_title,
+                "project_status": project_status,
+                "project_address": project_address,
+            }
+        )
+        for image, project_title, project_status, project_address in rows
+    ]
+    return AdminImageList(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        classifications=[value for value in classifications if value],
+    )
+
+
 @app.get("/api/v1/projects/{project_id}/images", response_model=list[ImageOut])
 def list_images(project_id: UUID, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     project_or_404(db, project_id)
@@ -632,6 +704,7 @@ def convert_inquiry_to_project(inquiry_id: UUID, payload: InquiryConvert, user: 
     inquiry = inquiry_or_404(db, inquiry_id)
     if inquiry.converted_project_id:
         raise HTTPException(status_code=409, detail="이미 현장으로 전환된 견적 문의입니다.")
+    latest = max(inquiry.estimates, key=lambda item: item.version, default=None)
     project = Project(
         title=payload.project_title or f"{inquiry.customer_name} 고객 현장",
         customer_name=inquiry.customer_name,
@@ -640,17 +713,18 @@ def convert_inquiry_to_project(inquiry_id: UUID, payload: InquiryConvert, user: 
         housing_type=inquiry.housing_type,
         area_pyeong=inquiry.area_pyeong,
         work_scope=inquiry.request_details,
-        description=inquiry.memo,
+        description=None,
+        internal_memo=inquiry.memo,
         address=inquiry.address or "주소 미정",
         address_detail=inquiry.address_detail,
         planned_start_date=payload.planned_start_date,
         planned_end_date=payload.planned_end_date,
+        contract_estimate_id=latest.id if latest else None,
         created_by=user.id,
     )
     db.add(project)
     db.flush()
     db.add(ProjectStatusHistory(project_id=project.id, to_status=ProjectStatus.PLANNING, changed_by=user.id, note="견적 상담에서 계약 전환"))
-    latest = max(inquiry.estimates, key=lambda item: item.version, default=None)
     if latest:
         for line in latest.lines:
             db.add(CostItem(

@@ -60,6 +60,7 @@ import MoneyInput from "./MoneyInput";
 import IntegerInput from "./IntegerInput";
 import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
 import PhotoClassificationEditor from "./PhotoClassificationEditor";
+import PhotoLibrary from "./PhotoLibrary";
 import ConfirmModal from "./ConfirmModal";
 import Modal from "./Modal";
 
@@ -71,7 +72,8 @@ const statusLabels: Record<ProjectStatus, string> = {
   CANCELLED: "취소",
 };
 const statusStyles: Record<ProjectStatus, string> = {
-  PLANNING: "bg-[#f1f2ed] text-[#758078]",
+  PLANNING:
+    "bg-[#fff0d8] text-[#94611f] ring-1 ring-inset ring-[#efd4a8]",
   IN_PROGRESS: "bg-[#fff1df] text-[#a76016]",
   COMPLETED: "bg-[#e6f4ea] text-[#2f7d4c]",
   ON_HOLD: "bg-[#fff4df] text-[#a66c1f]",
@@ -452,6 +454,7 @@ function Sidebar({
     { id: "dashboard", label: "대시보드", icon: LayoutDashboard },
     { id: "estimates", label: "견적·상담", icon: ClipboardList },
     { id: "projects", label: "전체 현장", icon: FolderKanban },
+    { id: "photos", label: "사진 관리", icon: Camera },
     { id: "map", label: "현장 지도", icon: MapPin },
   ];
   return (
@@ -541,6 +544,7 @@ function MobileBottomNav({
     { id: "dashboard", label: "홈", icon: LayoutDashboard },
     { id: "estimates", label: "견적", icon: ClipboardList },
     { id: "projects", label: "현장", icon: FolderKanban },
+    { id: "photos", label: "사진", icon: Camera },
     { id: "map", label: "지도", icon: MapPin },
   ];
   return (
@@ -1167,7 +1171,9 @@ function ProjectForm({
           area_pyeong: "",
           planned_start_date: "",
           planned_end_date: "",
+          work_scope: "",
           description: "",
+          internal_memo: "",
         },
   );
   const [saving, setSaving] = useState(false);
@@ -1206,10 +1212,7 @@ function ProjectForm({
         현장 목록으로
       </button>
       <div className="mb-7">
-        <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#91a097]">
-          Project details
-        </p>
-        <h2 className="serif mt-1 text-3xl text-[#1b3025]">
+        <h2 className="serif text-3xl text-[#1b3025]">
           {project ? "현장 정보 수정" : "새 현장 등록"}
         </h2>
       </div>
@@ -1350,10 +1353,22 @@ function ProjectForm({
               <label className="label">공사 범위</label>
               <textarea
                 className="field min-h-28 resize-y"
-                value={String(form.description || "")}
-                onChange={(e) => set("description", e.target.value)}
+                value={String(form.work_scope || "")}
+                onChange={(e) => set("work_scope", e.target.value)}
                 placeholder="공사할 공간과 작업 내용을 입력해 주세요."
               />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">내부 메모</label>
+              <textarea
+                className="field min-h-24 resize-y"
+                value={String(form.internal_memo || "")}
+                onChange={(e) => set("internal_memo", e.target.value)}
+                placeholder="고객 요청이나 현장 특이사항 등 관리자용 메모를 입력해 주세요."
+              />
+              <p className="mt-1.5 text-xs text-[#7f8d84]">
+                관리자 화면에서만 확인할 수 있습니다.
+              </p>
             </div>
           </div>
         </section>
@@ -1398,11 +1413,13 @@ function ProjectForm({
 
 function DetailPage({
   id,
+  initialTab = "overview",
   onBack,
   onEdit,
   onDeleted,
 }: {
   id: string;
+  initialTab?: "overview" | "photos";
   onBack: () => void;
   onEdit: (project: Project) => void;
   onDeleted: () => void;
@@ -1418,7 +1435,7 @@ function DetailPage({
   } | null>(null);
   const [tab, setTab] = useState<
     "overview" | "photos" | "simulation" | "costs"
-  >("overview");
+  >(initialTab);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [imageToDelete, setImageToDelete] = useState<Image | null>(null);
@@ -1457,6 +1474,7 @@ function DetailPage({
       .catch(() => {});
   };
   useEffect(load, [id]);
+  useEffect(() => setTab(initialTab), [id, initialTab]);
   useEffect(() => {
     setPhotoClassificationFilter("");
   }, [id]);
@@ -1723,20 +1741,26 @@ function DetailPage({
               </div>
             </div>
             <div className="mt-7 border-t border-[#edf0ec] pt-5">
-              <p className="label">공사 범위 / 메모</p>
+              <p className="label">공사 범위</p>
               <p className="value-copy whitespace-pre-wrap">
-                {project.description || "등록된 메모가 없습니다."}
+                {project.work_scope || "등록된 공사 범위가 없습니다."}
+              </p>
+            </div>
+            <div className="mt-5 border-t border-[#edf0ec] pt-5">
+              <p className="label">내부 메모</p>
+              <p className="value-copy whitespace-pre-wrap">
+                {project.internal_memo || "등록된 내부 메모가 없습니다."}
               </p>
             </div>
           </section>
-          <section className="panel overflow-hidden">
-            <div className="flex h-64 items-center justify-center bg-[#edf2ed]">
+          <section className="panel flex h-full flex-col overflow-hidden">
+            <div className="relative flex min-h-64 flex-1 items-center justify-center overflow-hidden bg-[#edf2ed]">
               {project.images.find((i) => i.is_cover) ? (
                 <img
                   src={mediaUrl(
                     project.images.find((i) => i.is_cover)?.thumbnail_url,
                   )}
-                  className="h-full w-full object-cover"
+                  className="absolute inset-0 h-full w-full object-cover"
                 />
               ) : (
                 <div className="text-center text-[#9baa9e]">
@@ -1745,11 +1769,22 @@ function DetailPage({
                 </div>
               )}
             </div>
-            <div className="p-5">
-              <p className="label">공개 공사 범위</p>
-              <p className="value-copy">
-                {project.description || "아직 등록된 공사 범위가 없습니다."}
-              </p>
+            <div className="flex shrink-0 flex-col gap-3 border-t border-[#e4eae5] p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div>
+                <p className="label">대표 사진</p>
+                <p className="text-sm font-semibold text-[#4b6254]">
+                  {project.is_public
+                    ? "공개 현장에 표시되는 사진입니다."
+                    : "현재 관리자에게만 표시됩니다."}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary shrink-0 self-start px-3 py-2 text-xs sm:self-auto"
+                onClick={() => setTab("photos")}
+              >
+                <Camera size={14} /> 사진 관리
+              </button>
             </div>
           </section>
         </div>
@@ -2355,15 +2390,31 @@ const adminProjectPattern = new RegExp(
   `^/admin/projects/(${ADMIN_PROJECT_UUID})/?$`,
 );
 
-function adminRoute(pathname: string) {
+type AdminRoute = {
+  page: string;
+  projectId: string | null;
+  projectTab?: "photos";
+};
+
+function adminRoute(pathname: string, search = ""): AdminRoute {
   const projectId = pathname.match(adminProjectPattern)?.[1] || null;
-  if (projectId) return { page: "detail", projectId };
+  if (projectId)
+    return {
+      page: "detail",
+      projectId,
+      projectTab:
+        new URLSearchParams(search).get("tab") === "photos"
+          ? "photos"
+          : undefined,
+    };
   if (/^\/admin\/projects\/new\/?$/.test(pathname))
     return { page: "new-project", projectId: null };
   if (/^\/admin\/projects\/?$/.test(pathname))
     return { page: "projects", projectId: null };
   if (/^\/admin\/estimates\/?$/.test(pathname))
     return { page: "estimates", projectId: null };
+  if (/^\/admin\/photos\/?$/.test(pathname))
+    return { page: "photos", projectId: null };
   if (/^\/admin\/map\/?$/.test(pathname))
     return { page: "map", projectId: null };
   if (/^\/admin\/settings\/?$/.test(pathname))
@@ -2377,13 +2428,17 @@ function adminPath(page: string, projectId?: string | null) {
   if (page === "detail" && projectId)
     return `/admin/projects/${projectId}`;
   if (page === "estimates") return "/admin/estimates";
+  if (page === "photos") return "/admin/photos";
   if (page === "map") return "/admin/map";
   if (page === "settings") return "/admin/settings";
   return "/admin";
 }
 
 function AdminApp() {
-  const initialRoute = adminRoute(window.location.pathname);
+  const initialRoute = adminRoute(
+    window.location.pathname,
+    window.location.search,
+  );
   const [authenticated, setAuthenticated] = useState(
     Boolean(localStorage.getItem("interior_token")),
   );
@@ -2391,20 +2446,32 @@ function AdminApp() {
   const [selectedId, setSelectedId] = useState<string | null>(
     initialRoute.projectId,
   );
+  const [selectedProjectTab, setSelectedProjectTab] = useState<
+    "photos" | undefined
+  >(initialRoute.projectTab);
   const [formProject, setFormProject] = useState<Project | undefined>();
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigateAdmin = (nextPage: string, projectId?: string | null) => {
     setPage(nextPage);
     setSelectedId(projectId || null);
+    setSelectedProjectTab(undefined);
     setFormProject(undefined);
     history.pushState({}, "", adminPath(nextPage, projectId));
   };
+  const openProjectPhotos = (projectId: string) => {
+    setPage("detail");
+    setSelectedId(projectId);
+    setSelectedProjectTab("photos");
+    setFormProject(undefined);
+    history.pushState({}, "", `${adminPath("detail", projectId)}?tab=photos`);
+  };
   useEffect(() => {
     const onPopState = () => {
-      const route = adminRoute(window.location.pathname);
+      const route = adminRoute(window.location.pathname, window.location.search);
       setPage(route.page);
       setSelectedId(route.projectId);
+      setSelectedProjectTab(route.projectTab);
       setFormProject(undefined);
     };
     window.addEventListener("popstate", onPopState);
@@ -2428,6 +2495,7 @@ function AdminApp() {
           if (/^\/admin\/login\/?$/.test(window.location.pathname)) {
             setPage("dashboard");
             setSelectedId(null);
+            setSelectedProjectTab(undefined);
             history.replaceState({}, "", "/admin");
           }
         }}
@@ -2453,7 +2521,10 @@ function AdminApp() {
     content = (
       <DetailPage
         id={selectedId}
-        onBack={() => navigateAdmin("projects")}
+        initialTab={selectedProjectTab}
+        onBack={() =>
+          navigateAdmin(selectedProjectTab === "photos" ? "photos" : "projects")
+        }
         onEdit={(p) => setFormProject(p)}
         onDeleted={() => navigateAdmin("projects")}
       />
@@ -2471,6 +2542,14 @@ function AdminApp() {
     content = (
       <EstimateInquiriesPage
         onOpenProject={(id) => navigateAdmin("detail", id)}
+      />
+    );
+  } else if (page === "photos") {
+    title = "사진 관리";
+    content = (
+      <PhotoLibrary
+        onOpenProject={(id) => navigateAdmin("detail", id)}
+        onOpenProjectPhotos={openProjectPhotos}
       />
     );
   } else if (page === "map") {
@@ -2495,7 +2574,13 @@ function AdminApp() {
   return (
     <div className="flex min-h-screen bg-[#f6f7f8]">
       <Sidebar
-        page={page}
+        page={
+          page === "detail"
+            ? selectedProjectTab === "photos"
+              ? "photos"
+              : "projects"
+            : page
+        }
         setPage={(p) => navigateAdmin(p)}
         onLogout={() => {
           localStorage.removeItem("interior_token");
@@ -2510,7 +2595,13 @@ function AdminApp() {
         {content}
       </main>
       <MobileBottomNav
-        page={page}
+        page={
+          page === "detail"
+            ? selectedProjectTab === "photos"
+              ? "photos"
+              : "projects"
+            : page
+        }
         setPage={(p) => navigateAdmin(p)}
       />
     </div>

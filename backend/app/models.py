@@ -174,6 +174,7 @@ class Project(Base):
     area_pyeong: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
     work_scope: Mapped[str | None] = mapped_column(Text, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    internal_memo: Mapped[str | None] = mapped_column(Text, nullable=True)
     address: Mapped[str] = mapped_column(String(300))
     address_detail: Mapped[str | None] = mapped_column(String(200), nullable=True)
     latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
@@ -183,6 +184,11 @@ class Project(Base):
     planned_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     actual_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    contract_estimate_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("estimate_documents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

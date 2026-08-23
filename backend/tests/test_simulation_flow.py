@@ -83,6 +83,21 @@ class SimulationFlowTest(unittest.TestCase):
             )
             self.assertTrue(first_photo.json()["is_cover"])
             self.assertFalse(second_photo.json()["is_cover"])
+            classified_photo = client.patch(
+                f"/api/v1/projects/{project_id}/images/{second_photo.json()['id']}",
+                json={"classification": "거실", "is_public": True},
+                headers=headers,
+            )
+            self.assertEqual(classified_photo.status_code, 200, classified_photo.text)
+            photo_library = client.get(
+                f"/api/v1/images?project_id={project_id}&classification=거실&is_public=true",
+                headers=headers,
+            )
+            self.assertEqual(photo_library.status_code, 200, photo_library.text)
+            self.assertEqual(photo_library.json()["total"], 1)
+            self.assertEqual(photo_library.json()["items"][0]["id"], second_photo.json()["id"])
+            self.assertEqual(photo_library.json()["items"][0]["project_title"], "시뮬레이션 테스트")
+            self.assertIn("거실", photo_library.json()["classifications"])
             removed = client.delete(f"/api/v1/projects/{project_id}/images/{first_photo.json()['id']}", headers=headers)
             self.assertEqual(removed.status_code, 204, removed.text)
             refreshed_project = client.get(f"/api/v1/projects/{project_id}", headers=headers)
@@ -163,6 +178,8 @@ class SimulationFlowTest(unittest.TestCase):
                     "customer_name": "삭제 테스트",
                     "customer_phone": "010-1234-5678",
                     "desired_start_date": "2026-09-01",
+                    "request_details": "거실과 주방 전체 공사",
+                    "memo": "엘리베이터 사용 사전 예약",
                 },
                 headers=headers,
             )
@@ -205,6 +222,10 @@ class SimulationFlowTest(unittest.TestCase):
                 headers=headers,
             )
             self.assertEqual(converted.status_code, 201, converted.text)
+            self.assertEqual(converted.json()["contract_estimate_id"], estimate.json()["id"])
+            self.assertEqual(converted.json()["work_scope"], "거실과 주방 전체 공사")
+            self.assertEqual(converted.json()["internal_memo"], "엘리베이터 사용 사전 예약")
+            self.assertIsNone(converted.json()["description"])
             self.assertIsNone(converted.json()["planned_start_date"])
             self.assertIsNone(converted.json()["planned_end_date"])
             project_id = converted.json()["id"]

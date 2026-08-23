@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown, Plus, Tag } from "lucide-react";
 
 export default function PhotoClassificationEditor({
   value,
@@ -147,10 +147,10 @@ export default function PhotoClassificationEditor({
           type="submit"
           disabled={disabled || draft.trim() === value}
           className="flex w-10 shrink-0 items-center justify-center bg-[#244c38] text-white transition hover:bg-[#18372b] disabled:cursor-default disabled:bg-[#dfe7e1] disabled:text-[#91a097]"
-          aria-label="사진 분류 저장"
-          title="분류 저장"
+          aria-label="사진 분류 적용"
+          title="분류 적용"
         >
-          <Check size={15} strokeWidth={2.5} />
+          <Tag size={15} strokeWidth={2.3} />
         </button>
       </form>
       {open && menuPosition &&

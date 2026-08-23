@@ -1,4 +1,5 @@
 import type {
+  AdminImageList,
   Cost,
   CompanySettings,
   Dashboard,
@@ -197,6 +198,8 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+  images: (params = "") =>
+    request<AdminImageList>(`/api/v1/images${params}`),
   inquiryStats: () => request<InquiryStats>("/api/v1/estimate-inquiries/stats"),
   inquiries: (params = "") =>
     request<{

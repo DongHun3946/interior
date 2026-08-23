@@ -12,7 +12,7 @@ button { cursor: pointer; }
 .mobile-bottom-nav { display: none; }
 .print-sheet { display: none; }
 @media (max-width: 1023px) {
-  .mobile-bottom-nav { position: fixed; z-index: 25; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 9px 10px max(9px, env(safe-area-inset-bottom)); border-top: 1px solid #e8ebed; background: rgba(255,255,255,.96); box-shadow: 0 -6px 24px rgba(31, 42, 52,.07); backdrop-filter: blur(16px); }
+  .mobile-bottom-nav { position: fixed; z-index: 25; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 9px 8px max(9px, env(safe-area-inset-bottom)); border-top: 1px solid #e8ebed; background: rgba(255,255,255,.96); box-shadow: 0 -6px 24px rgba(31, 42, 52,.07); backdrop-filter: blur(16px); }
   .mobile-bottom-safe { padding-bottom: 82px; }
 }
 
@@ -63,6 +63,14 @@ button { cursor: pointer; }
   .estimate-print-lines .estimate-cell-center { text-align: center; }
   .estimate-print-lines .estimate-cell-number { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .estimate-print-lines .estimate-line-amount { color: #17201d; font-weight: 700; }
+  .photo-viewer-overlay { position: static !important; display: block !important; padding: 0 !important; background: white !important; }
+  .photo-viewer-dialog { display: block !important; width: 100% !important; height: auto !important; max-width: none !important; overflow: visible !important; border: 0 !important; background: white !important; box-shadow: none !important; }
+  .photo-viewer-toolbar { display: none !important; }
+  .photo-viewer-help { display: none !important; }
+  .photo-viewer-canvas { display: block !important; overflow: visible !important; padding: 0 !important; background: white !important; }
+  .photo-print-area, .photo-print-area * { visibility: visible !important; }
+  .photo-print-area { display: flex !important; width: 100% !important; min-height: 0 !important; align-items: center !important; justify-content: center !important; }
+  .photo-viewer-image { width: auto !important; max-width: 100% !important; max-height: 260mm !important; object-fit: contain !important; box-shadow: none !important; }
 }
 @layer components {
   .panel { @apply rounded-2xl border border-[#cdd9d0] bg-white shadow-[0_10px_28px_rgba(24,55,43,.11)]; }

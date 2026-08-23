@@ -31,6 +31,18 @@ export interface Image {
   is_cover: boolean;
   is_public: boolean;
 }
+export interface AdminImage extends Image {
+  project_title: string;
+  project_status: ProjectStatus;
+  project_address: string;
+}
+export interface AdminImageList {
+  items: AdminImage[];
+  total: number;
+  page: number;
+  page_size: number;
+  classifications: string[];
+}
 export interface Project {
   id: string;
   title: string;
@@ -41,6 +53,7 @@ export interface Project {
   area_pyeong?: number;
   work_scope?: string;
   description?: string;
+  internal_memo?: string;
   address: string;
   address_detail?: string;
   latitude?: number;
@@ -50,6 +63,7 @@ export interface Project {
   planned_end_date?: string;
   actual_end_date?: string;
   is_public: boolean;
+  contract_estimate_id?: string;
   created_at: string;
   updated_at: string;
   images: Image[];

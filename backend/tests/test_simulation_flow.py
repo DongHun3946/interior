@@ -11,6 +11,7 @@ os.environ["ADMIN_LOGIN_ID"] = "simulation-test"
 os.environ["ADMIN_PASSWORD"] = "test-password"
 
 from fastapi.testclient import TestClient
+from jose import jwt
 from sqlalchemy import inspect
 
 from backend.app.main import app
@@ -38,6 +39,7 @@ class SimulationFlowTest(unittest.TestCase):
                 "representative_name": "홍길동",
                 "phone": "02-1234-5678",
                 "fax": "02-1234-5679",
+                "session_timeout_minutes": 240,
             }
             company = client.put(
                 "/api/v1/company-settings",
@@ -49,6 +51,16 @@ class SimulationFlowTest(unittest.TestCase):
             loaded_company = client.get("/api/v1/company-settings", headers=headers)
             self.assertEqual(loaded_company.status_code, 200, loaded_company.text)
             self.assertEqual(loaded_company.json(), company_payload)
+            configured_login = client.post(
+                "/api/v1/auth/login",
+                data={"username": "simulation-test", "password": "test-password"},
+            )
+            configured_claims = jwt.get_unverified_claims(
+                configured_login.json()["access_token"]
+            )
+            self.assertEqual(
+                configured_claims["exp"] - configured_claims["iat"], 240 * 60
+            )
 
             project = client.post("/api/v1/projects", json={"title": "시뮬레이션 테스트", "address": "서울특별시 중구 세종대로 110"}, headers=headers)
             self.assertEqual(project.status_code, 201, project.text)

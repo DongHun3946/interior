@@ -191,6 +191,7 @@ export interface CompanySettings {
   representative_name: string;
   phone: string;
   fax: string;
+  session_timeout_minutes: number;
 }
 
 export type InquiryStatus =

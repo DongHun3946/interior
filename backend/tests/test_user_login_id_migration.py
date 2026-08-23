@@ -95,6 +95,45 @@ class UserLoginIdMigrationTest(unittest.TestCase):
             finally:
                 engine.dispose()
 
+    def test_company_session_timeout_column_is_added(self):
+        with tempfile.TemporaryDirectory(prefix="interior-company-migration-") as temp_dir:
+            database_path = Path(temp_dir, "legacy.db").as_posix()
+            engine = create_engine(f"sqlite:///{database_path}")
+            try:
+                with engine.begin() as connection:
+                    connection.execute(
+                        text(
+                            "CREATE TABLE company_settings ("
+                            "id VARCHAR(36) PRIMARY KEY, "
+                            "business_name VARCHAR(200) NOT NULL"
+                            ")"
+                        )
+                    )
+                    connection.execute(
+                        text(
+                            "INSERT INTO company_settings (id, business_name) "
+                            "VALUES ('company-id', '테스트 업체')"
+                        )
+                    )
+
+                ensure_schema_compatibility(engine)
+
+                columns = {
+                    column["name"]
+                    for column in inspect(engine).get_columns("company_settings")
+                }
+                self.assertIn("session_timeout_minutes", columns)
+                with engine.connect() as connection:
+                    timeout = connection.scalar(
+                        text(
+                            "SELECT session_timeout_minutes "
+                            "FROM company_settings WHERE id = 'company-id'"
+                        )
+                    )
+                self.assertEqual(timeout, 480)
+            finally:
+                engine.dispose()
+
 
 if __name__ == "__main__":
     unittest.main()

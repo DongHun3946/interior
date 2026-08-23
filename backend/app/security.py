@@ -23,9 +23,16 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
-def create_access_token(subject: str) -> str:
-    expires = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    return jwt.encode({"sub": subject, "exp": expires}, settings.secret_key, algorithm="HS256")
+def create_access_token(subject: str, expires_minutes: int | None = None) -> str:
+    issued_at = datetime.now(timezone.utc)
+    expires = issued_at + timedelta(
+        minutes=expires_minutes or settings.access_token_expire_minutes
+    )
+    return jwt.encode(
+        {"sub": subject, "iat": issued_at, "exp": expires},
+        settings.secret_key,
+        algorithm="HS256",
+    )
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:

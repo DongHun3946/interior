@@ -135,7 +135,14 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     user = db.scalar(select(User).where(User.login_id == form_data.username))
     if not user or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="아이디 또는 비밀번호를 확인해주세요.")
-    return Token(access_token=create_access_token(str(user.id)), user=UserOut.model_validate(user))
+    company = db.scalar(select(CompanySettings).order_by(CompanySettings.created_at).limit(1))
+    session_timeout_minutes = company.session_timeout_minutes if company else 480
+    return Token(
+        access_token=create_access_token(
+            str(user.id), expires_minutes=session_timeout_minutes
+        ),
+        user=UserOut.model_validate(user),
+    )
 
 
 @app.get("/api/v1/auth/me", response_model=UserOut)
@@ -156,7 +163,7 @@ def update_company_settings(payload: CompanySettingsUpdate, _: User = Depends(re
         company = CompanySettings()
         db.add(company)
     for key, value in payload.model_dump().items():
-        setattr(company, key, value.strip())
+        setattr(company, key, value.strip() if isinstance(value, str) else value)
     db.commit()
     db.refresh(company)
     return company

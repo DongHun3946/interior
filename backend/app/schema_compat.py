@@ -118,6 +118,26 @@ def _migrate_payment_history(engine: Engine) -> None:
         )
 
 
+def _migrate_company_session_timeout(engine: Engine) -> None:
+    inspector = inspect(engine)
+    if "company_settings" not in inspector.get_table_names():
+        return
+    columns = {
+        column["name"] for column in inspector.get_columns("company_settings")
+    }
+    if "session_timeout_minutes" in columns:
+        return
+    quote = engine.dialect.identifier_preparer.quote
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                f"ALTER TABLE {quote('company_settings')} "
+                f"ADD COLUMN {quote('session_timeout_minutes')} "
+                "INTEGER NOT NULL DEFAULT 480"
+            )
+        )
+
+
 def _migrate_project_contract_estimate(engine: Engine) -> None:
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
@@ -218,6 +238,7 @@ def ensure_schema_compatibility(engine: Engine) -> None:
     """Apply the small in-place schema migrations used by the local application."""
     _migrate_user_login_id(engine)
     _migrate_payment_history(engine)
+    _migrate_company_session_timeout(engine)
     _migrate_project_contract_estimate(engine)
     _migrate_project_content_fields(engine)
     _drop_removed_columns(engine)

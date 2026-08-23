@@ -28,6 +28,7 @@ class CompanySettingsUpdate(BaseModel):
     representative_name: str = Field(default="", max_length=100)
     phone: str = Field(default="", max_length=40)
     fax: str = Field(default="", max_length=40)
+    session_timeout_minutes: int = Field(default=480, ge=30, le=10_080)
 
 
 class CompanySettingsOut(CompanySettingsUpdate):

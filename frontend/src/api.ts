@@ -28,6 +28,13 @@ import { ApiError, reportAppError, toUserFacingError } from "./errors";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const token = () => localStorage.getItem("interior_token");
+const AUTH_EXPIRED_EVENT = "interior:auth-expired";
+
+function handleExpiredAuthentication(path: string, status: number) {
+  if (status !== 401 || path === "/api/v1/auth/login") return;
+  localStorage.removeItem("interior_token");
+  window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+}
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
@@ -52,6 +59,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw error;
   }
   if (!response.ok) {
+    handleExpiredAuthentication(path, response.status);
     const payload = await response
       .json()
       .catch(() => ({ detail: "요청을 처리하지 못했습니다." }));
@@ -89,6 +97,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw error;
   }
 }
+
+export { AUTH_EXPIRED_EVENT };
 
 export const mediaUrl = (path?: string) =>
   path?.startsWith("http") ? path : `${API}${path || ""}`;

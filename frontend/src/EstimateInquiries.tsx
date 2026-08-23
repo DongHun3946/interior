@@ -44,6 +44,7 @@ const emptyCompanySettings: CompanySettings = {
   representative_name: "",
   phone: "",
   fax: "",
+  session_timeout_minutes: 480,
 };
 
 const inquiryStatusLabels: Record<InquiryStatus, string> = {

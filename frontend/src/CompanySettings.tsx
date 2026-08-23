@@ -1,8 +1,18 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Building2, CheckCircle2, Save } from "lucide-react";
+import { Building2, CheckCircle2, Clock3, Save, ShieldCheck } from "lucide-react";
 
 import { api } from "./api";
+import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
 import type { CompanySettings } from "./types";
+
+const sessionTimeoutOptions: DropdownOption[] = [
+  { value: "60", label: "1시간" },
+  { value: "240", label: "4시간" },
+  { value: "480", label: "8시간 (권장)" },
+  { value: "720", label: "12시간" },
+  { value: "1440", label: "24시간" },
+  { value: "10080", label: "7일" },
+];
 
 const emptySettings: CompanySettings = {
   business_name: "",
@@ -11,6 +21,7 @@ const emptySettings: CompanySettings = {
   representative_name: "",
   phone: "",
   fax: "",
+  session_timeout_minutes: 480,
 };
 
 export default function CompanySettingsPage() {
@@ -34,7 +45,10 @@ export default function CompanySettingsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const set = (key: keyof CompanySettings, value: string) => {
+  const set = <K extends keyof CompanySettings,>(
+    key: K,
+    value: CompanySettings[K],
+  ) => {
     setSaved(false);
     setForm((current) => ({ ...current, [key]: value }));
   };
@@ -87,8 +101,9 @@ export default function CompanySettingsPage() {
               업체 정보를 불러오는 중입니다.
             </p>
           ) : (
-            <div className="grid gap-5 md:grid-cols-2">
-              <div>
+            <div className="space-y-8">
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
                 <label className="label">상호</label>
                 <input
                   className="field"
@@ -135,14 +150,47 @@ export default function CompanySettingsPage() {
                   onChange={(event) => set("fax", event.target.value)}
                 />
               </div>
-              <div className="md:col-span-2">
+                <div className="md:col-span-2">
                 <label className="label">주소</label>
                 <input
                   className="field"
                   value={form.address}
                   onChange={(event) => set("address", event.target.value)}
                 />
+                </div>
               </div>
+              <section className="rounded-2xl border border-[#dce6de] bg-[#f7faf7] p-5 sm:p-6">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex min-w-0 gap-3.5">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e5f0e7] text-[#3f704e]">
+                      <ShieldCheck size={19} />
+                    </span>
+                    <div>
+                      <h3 className="font-bold text-[#294534]">로그인 보안</h3>
+                      <p className="mt-1 text-sm leading-6 text-[#718078]">
+                        관리자가 다시 로그인하기 전까지 유지할 시간을 설정합니다.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-full shrink-0 sm:w-56">
+                    <label className="label flex items-center gap-1.5">
+                      <Clock3 size={14} /> 로그인 유지 시간
+                    </label>
+                    <DropdownSelect
+                      value={String(form.session_timeout_minutes)}
+                      options={sessionTimeoutOptions}
+                      onChange={(value) =>
+                        set("session_timeout_minutes", Number(value))
+                      }
+                      ariaLabel="로그인 유지 시간"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 rounded-xl border border-[#e1e8e2] bg-white px-4 py-3 text-xs leading-5 text-[#68786e]">
+                  변경한 시간은 <strong className="text-[#365642]">다음 로그인부터</strong>{" "}
+                  발급되는 JWT에 적용됩니다. 공용 컴퓨터에서는 사용 후 반드시 로그아웃해 주세요.
+                </div>
+              </section>
             </div>
           )}
 
@@ -156,7 +204,7 @@ export default function CompanySettingsPage() {
             <div className="mt-8 flex justify-end border-t border-[#e9ede9] pt-6">
               <button className="btn-primary" disabled={saving}>
                 <Save size={16} />
-                {saving ? "저장 중…" : "업체 정보 저장"}
+                {saving ? "저장 중…" : "설정 저장"}
               </button>
             </div>
           )}

@@ -34,7 +34,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
-import { api, mediaUrl } from "./api";
+import { AUTH_EXPIRED_EVENT, api, mediaUrl } from "./api";
 import type {
   Cost,
   Dashboard,
@@ -74,17 +74,21 @@ const statusLabels: Record<ProjectStatus, string> = {
 const statusStyles: Record<ProjectStatus, string> = {
   PLANNING:
     "bg-[#fff0d8] text-[#94611f] ring-1 ring-inset ring-[#efd4a8]",
-  IN_PROGRESS: "bg-[#fff1df] text-[#a76016]",
-  COMPLETED: "bg-[#e6f4ea] text-[#2f7d4c]",
-  ON_HOLD: "bg-[#fff4df] text-[#a66c1f]",
-  CANCELLED: "bg-[#fdecec] text-[#a65c5c]",
+  IN_PROGRESS:
+    "bg-[#e8f1ff] text-[#326aa8] ring-1 ring-inset ring-[#c9dcf6]",
+  COMPLETED:
+    "bg-[#e6f4ea] text-[#2f7d4c] ring-1 ring-inset ring-[#c6e4cf]",
+  ON_HOLD:
+    "bg-[#f1ebff] text-[#7451a6] ring-1 ring-inset ring-[#ddd0f5]",
+  CANCELLED:
+    "bg-[#fdecec] text-[#a65358] ring-1 ring-inset ring-[#f1cbcd]",
 };
 const statusDots: Record<ProjectStatus, string> = {
-  PLANNING: "bg-[#9aa49d]",
-  IN_PROGRESS: "bg-[#df8728]",
-  COMPLETED: "bg-[#3d985d]",
-  ON_HOLD: "bg-[#d89a43]",
-  CANCELLED: "bg-[#c96f6f]",
+  PLANNING: "bg-[#d5a044]",
+  IN_PROGRESS: "bg-[#4387d6]",
+  COMPLETED: "bg-[#3b9b60]",
+  ON_HOLD: "bg-[#8a68bd]",
+  CANCELLED: "bg-[#cf686f]",
 };
 const projectStatusOptions = Object.keys(statusLabels) as ProjectStatus[];
 const photoClassificationPresets = [
@@ -2467,6 +2471,19 @@ function AdminApp() {
     history.pushState({}, "", `${adminPath("detail", projectId)}?tab=photos`);
   };
   useEffect(() => {
+    const handleAuthExpired = () => {
+      setAuthenticated(false);
+      setPage("dashboard");
+      setSelectedId(null);
+      setSelectedProjectTab(undefined);
+      setFormProject(undefined);
+      history.replaceState({}, "", "/admin");
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () =>
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+  }, []);
+  useEffect(() => {
     const onPopState = () => {
       const route = adminRoute(window.location.pathname, window.location.search);
       setPage(route.page);
@@ -2482,10 +2499,7 @@ function AdminApp() {
       api
         .dashboard()
         .then(setDashboard)
-        .catch(() => {
-          localStorage.removeItem("interior_token");
-          setAuthenticated(false);
-        });
+        .catch(() => {});
   }, [authenticated, page]);
   if (!authenticated)
     return (

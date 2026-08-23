@@ -88,7 +88,12 @@ export interface CostSummary {
   supply_total: number;
   vat_total: number;
 }
-export type PaymentStage = "DEPOSIT" | "INTERIM" | "BALANCE" | "OTHER";
+export type PaymentStage =
+  | "DEPOSIT"
+  | "INTERIM"
+  | "BALANCE"
+  | "LUMP_SUM"
+  | "OTHER";
 export type PaymentMethod = "BANK_TRANSFER" | "CASH" | "CARD" | "OTHER";
 export interface Payment {
   id: string;
@@ -154,6 +159,7 @@ export interface Dashboard {
   cancelled: number;
   total_contract: number;
   total_extra: number;
+  total_paid: number;
 }
 export interface User {
   id: string;

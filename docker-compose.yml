@@ -18,7 +18,11 @@ services:
   backend:
     build: ./backend
     environment:
-      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-interior}:${POSTGRES_PASSWORD:-interior}@db:5432/${POSTGRES_DB:-interior}
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${POSTGRES_DB:-interior}
+      DATABASE_USER: ${POSTGRES_USER:-interior}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-interior}
       SECRET_KEY: ${SECRET_KEY:-local-development-secret-change-me}
       ADMIN_LOGIN_ID: ${ADMIN_LOGIN_ID:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin1234!}

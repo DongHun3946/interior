@@ -23,6 +23,7 @@ import type {
   SpaceScan,
   SurfaceMaterial,
 } from "./types";
+import { ApiError, reportAppError, toUserFacingError } from "./errors";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const token = () => localStorage.getItem("interior_token");
@@ -35,15 +36,57 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   )
     headers.set("Content-Type", "application/json");
   if (token()) headers.set("Authorization", `Bearer ${token()}`);
-  const response = await fetch(`${API}${path}`, { ...options, headers });
+  const method = options.method || "GET";
+  let response: Response;
+  try {
+    response = await fetch(`${API}${path}`, { ...options, headers });
+  } catch (reason) {
+    const error = new ApiError("서버에 연결하지 못했습니다.", {
+      status: 0,
+      detail: reason,
+      path,
+      method,
+    });
+    reportAppError(error);
+    throw error;
+  }
   if (!response.ok) {
-    const error = await response
+    const payload = await response
       .json()
       .catch(() => ({ detail: "요청을 처리하지 못했습니다." }));
-    throw new Error(error.detail || "요청을 처리하지 못했습니다.");
+    const detail =
+      payload && typeof payload === "object" && "detail" in payload
+        ? payload.detail
+        : "요청을 처리하지 못했습니다.";
+    const error = new ApiError(
+      typeof detail === "string"
+        ? detail
+        : "요청을 처리하지 못했습니다.",
+      {
+        status: response.status,
+        detail,
+        path,
+        method,
+      },
+    );
+    error.message = toUserFacingError(error).message;
+    reportAppError(error);
+    throw error;
   }
   if (response.status === 204) return undefined as T;
-  return response.json();
+  try {
+    return await response.json();
+  } catch (reason) {
+    const error = new ApiError("서버 응답을 읽지 못했습니다.", {
+      status: 502,
+      detail: reason,
+      path,
+      method,
+    });
+    error.message = toUserFacingError(error).message;
+    reportAppError(error);
+    throw error;
+  }
 }
 
 export const mediaUrl = (path?: string) =>

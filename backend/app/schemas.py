@@ -272,6 +272,7 @@ class DashboardSummary(BaseModel):
     cancelled: int
     total_contract: int
     total_extra: int
+    total_paid: int
 
 
 class EstimateLineCreate(BaseModel):

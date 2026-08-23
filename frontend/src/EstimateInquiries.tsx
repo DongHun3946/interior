@@ -27,6 +27,7 @@ import AddressMapPicker from "./AddressMapPicker";
 import Modal from "./Modal";
 import ConfirmModal from "./ConfirmModal";
 import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
+import { reportAppError } from "./errors";
 import type {
   CompanySettings,
   EstimateDocument,
@@ -567,7 +568,12 @@ function EstimateEditor({
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (lines.some((line) => !line.name.trim())) {
-      setError("모든 견적 항목의 품명을 입력해 주세요.");
+      const message = "품명이 비어 있는 견적 항목이 있습니다.";
+      setError(message);
+      reportAppError(
+        new Error(message),
+        "품명이 비어 있는 견적 항목이 있습니다.",
+      );
       return;
     }
     setSaving(true);
@@ -842,23 +848,34 @@ function PrintEstimate({
           </tbody>
         </table>
       </header>
-      <section className="mt-7 grid grid-cols-2 gap-8 text-sm">
+      <section className="estimate-print-customer">
         <div>
-          <p className="text-xs text-gray-500">수신</p>
-          <p className="mt-1 text-xl font-bold">
+          <p className="estimate-print-customer-label">수신</p>
+          <p className="estimate-print-customer-name">
             {inquiry.customer_name} 고객님 귀하
           </p>
-          <p className="mt-2">
+          <p className="estimate-print-customer-address">
             {[inquiry.address, inquiry.address_detail]
               .filter(Boolean)
               .join(" ") || "주소 미정"}
           </p>
         </div>
       </section>
-      <h2 className="mt-9 text-lg font-bold">{estimate.title}</h2>
-      <table className="mt-3 w-full border-collapse text-sm">
+      <h2 className="estimate-print-table-title">{estimate.title}</h2>
+      <div className="estimate-print-table-frame">
+        <span className="estimate-print-table-edge estimate-print-table-edge-top" aria-hidden="true" />
+        <table className="estimate-print-lines">
+        <colgroup>
+          <col className="estimate-col-name" />
+          <col className="estimate-col-spec" />
+          <col className="estimate-col-unit" />
+          <col className="estimate-col-quantity" />
+          <col className="estimate-col-price" />
+          <col className="estimate-col-amount" />
+          <col className="estimate-col-memo" />
+        </colgroup>
         <thead>
-          <tr className="bg-[#edf3ee]">
+          <tr>
             <th>품명</th>
             <th>규격</th>
             <th>단위</th>
@@ -871,21 +888,23 @@ function PrintEstimate({
         <tbody>
           {estimate.lines.map((line) => (
             <tr key={line.id}>
-              <td>{line.name}</td>
+              <td className="estimate-line-name">{line.name}</td>
               <td>{line.specification || ""}</td>
-              <td>{line.unit}</td>
-              <td className="text-right">
+              <td className="estimate-cell-center">{line.unit}</td>
+              <td className="estimate-cell-center estimate-number">
                 {Number(line.quantity) > 0 ? line.quantity : ""}
               </td>
-              <td className="text-right">{won(line.unit_price)}</td>
-              <td className="text-right">
+              <td className="estimate-cell-number">{won(line.unit_price)}</td>
+              <td className="estimate-cell-number estimate-line-amount">
                 {won(line.supply_amount || line.quantity * line.unit_price)}
               </td>
               <td>{line.memo || ""}</td>
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+        <span className="estimate-print-table-edge estimate-print-table-edge-bottom" aria-hidden="true" />
+      </div>
       <div className="ml-auto mt-6 w-80 space-y-2 text-sm">
         <div className="flex justify-between">
           <span>공급가액</span>
@@ -972,11 +991,11 @@ function InquiryDetail({
     if (!printing || !companySettings) return;
     const timer = window.setTimeout(() => {
       const originalTitle = document.title;
-      const createdAt = new Date(printing.created_at);
+      const printedAt = new Date();
       const pad = (part: number) => String(part).padStart(2, "0");
-      const createdDate = `${createdAt.getFullYear()}-${pad(createdAt.getMonth() + 1)}-${pad(createdAt.getDate())}`;
+      const printedDate = `${printedAt.getFullYear()}-${pad(printedAt.getMonth() + 1)}-${pad(printedAt.getDate())}`;
       const safeCustomerName = inquiry.customer_name.replace(/[\\/:*?"<>|]/g, "_");
-      document.title = `견적서_${safeCustomerName}_고객_${createdDate}`;
+      document.title = `견적서_${safeCustomerName}_고객_${printedDate}`;
       try {
         window.print();
       } finally {

@@ -125,6 +125,9 @@ def ensure_schema_compatibility(engine: Engine) -> None:
     _drop_removed_columns(engine)
     if engine.dialect.name == "postgresql":
         with engine.begin() as connection:
+            connection.execute(
+                text("ALTER TYPE paymentstage ADD VALUE IF NOT EXISTS 'LUMP_SUM'")
+            )
             connection.execute(text("DROP TYPE IF EXISTS paymentstatus"))
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())

@@ -21,6 +21,59 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+ensure_docker_ready() {
+  if docker info >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "[준비] Docker Desktop을 시작하고 Linux 엔진을 기다립니다."
+
+  if command_exists powershell.exe; then
+    powershell.exe -NoProfile -NonInteractive -Command '
+      $dockerDesktop = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
+      if (-not (Test-Path -LiteralPath $dockerDesktop)) {
+        Write-Error "Docker Desktop 실행 파일을 찾을 수 없습니다: $dockerDesktop"
+        exit 1
+      }
+
+      $dockerService = Get-Service -Name "com.docker.service" -ErrorAction SilentlyContinue
+      if ($dockerService -and $dockerService.Status -ne "Running") {
+        try {
+          Start-Service -Name "com.docker.service" -ErrorAction Stop
+        } catch {
+          Write-Host "[권한] Docker 서비스를 시작하려면 Windows 관리자 승인이 필요합니다."
+          $elevated = Start-Process -FilePath "powershell.exe" -Verb RunAs -Wait -PassThru -ArgumentList @(
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Start-Service -Name com.docker.service"
+          )
+          if ($elevated.ExitCode -ne 0) {
+            Write-Error "Docker 서비스를 시작하지 못했습니다."
+            exit 1
+          }
+        }
+      }
+
+      if (-not (Get-Process -Name "Docker Desktop" -ErrorAction SilentlyContinue)) {
+        Start-Process -FilePath $dockerDesktop -WindowStyle Hidden
+      }
+    '
+  fi
+
+  for _ in {1..20}; do
+    if docker info >/dev/null 2>&1; then
+      echo "[준비] Docker Linux 엔진이 준비되었습니다."
+      return 0
+    fi
+    sleep 3
+  done
+
+  echo "오류: Docker Linux 엔진이 60초 안에 시작되지 않았습니다." >&2
+  echo "Docker Desktop을 직접 실행한 뒤 다시 시도해 주세요." >&2
+  return 1
+}
+
 validate_port() {
   local port="$1"
   local name="$2"
@@ -94,6 +147,8 @@ if ! command_exists docker || ! docker compose version >/dev/null 2>&1; then
   echo "오류: 로컬 PostgreSQL 실행을 위한 Docker Compose가 필요합니다." >&2
   exit 1
 fi
+
+ensure_docker_ready
 
 validate_port "$BACKEND_PORT" "백엔드"
 validate_port "$FRONTEND_PORT" "프론트엔드"

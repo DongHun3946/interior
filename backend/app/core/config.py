@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     app_name: str = "Interior Studio API"
     environment: str = "development"
     database_url: str = "postgresql+psycopg2://interior:interior@127.0.0.1:5432/interior"
+    database_host: str = ""
+    database_port: int = 5432
+    database_name: str = "interior"
+    database_user: str = "interior"
+    database_password: str = "interior"
     secret_key: str = "change-me-in-production"
     access_token_expire_minutes: int = 60
     cors_origins: str = "http://localhost:5173"

@@ -269,7 +269,8 @@ def dashboard(_: User = Depends(require_admin), db: Session = Depends(get_db)):
     counts = {status.value.lower(): db.scalar(select(func.count(Project.id)).where(Project.status == status, Project.deleted_at.is_(None))) or 0 for status in ProjectStatus}
     total_contract = db.scalar(select(func.coalesce(func.sum(CostItem.amount), 0)).where(CostItem.item_type == CostItemType.CONTRACT, CostItem.deleted_at.is_(None))) or 0
     total_extra = db.scalar(select(func.coalesce(func.sum(CostItem.amount), 0)).where(CostItem.item_type == CostItemType.EXTRA, CostItem.deleted_at.is_(None))) or 0
-    return DashboardSummary(total=sum(counts.values()), planning=counts["planning"], in_progress=counts["in_progress"], completed=counts["completed"], on_hold=counts["on_hold"], cancelled=counts["cancelled"], total_contract=int(total_contract), total_extra=int(total_extra))
+    total_paid = db.scalar(select(func.coalesce(func.sum(Payment.total_amount), 0)).where(Payment.deleted_at.is_(None))) or 0
+    return DashboardSummary(total=sum(counts.values()), planning=counts["planning"], in_progress=counts["in_progress"], completed=counts["completed"], on_hold=counts["on_hold"], cancelled=counts["cancelled"], total_contract=int(total_contract), total_extra=int(total_extra), total_paid=int(total_paid))
 
 
 @app.get("/api/v1/projects", response_model=ProjectList)

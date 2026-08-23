@@ -55,6 +55,7 @@ class PaymentStage(str, enum.Enum):
     DEPOSIT = "DEPOSIT"
     INTERIM = "INTERIM"
     BALANCE = "BALANCE"
+    LUMP_SUM = "LUMP_SUM"
     OTHER = "OTHER"
 
 

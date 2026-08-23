@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   ArrowUpRight,
+  Banknote,
   CalendarDays,
   Camera,
   Check,
@@ -95,6 +96,7 @@ const paymentStageOptions: DropdownOption[] = [
   { value: "DEPOSIT", label: "계약금" },
   { value: "INTERIM", label: "중도금" },
   { value: "BALANCE", label: "잔금" },
+  { value: "LUMP_SUM", label: "일시불" },
   { value: "OTHER", label: "기타" },
 ];
 const paymentMethodOptions: DropdownOption[] = [
@@ -643,7 +645,7 @@ function DashboardPage({
           <Plus size={17} />새 현장 등록
         </button>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="전체 현장"
           value={data.total}
@@ -667,6 +669,12 @@ function DashboardPage({
           value={money(data.total_contract)}
           tone="bg-[#f5eaf0] text-[#9a5970]"
           icon={WalletCards}
+        />
+        <StatCard
+          label="실제 입금액"
+          value={money(data.total_paid)}
+          tone="bg-[#e8f1f4] text-[#467383]"
+          icon={Banknote}
         />
       </div>
       <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
@@ -1463,6 +1471,7 @@ function DetailPage({
     paid_date: dateInputValue(),
     memo: "",
   });
+  const [useFullReceivable, setUseFullReceivable] = useState(false);
   const load = () => {
     api
       .project(id)
@@ -1515,15 +1524,29 @@ function DetailPage({
   };
   const addPayment = async (event: FormEvent) => {
     event.preventDefault();
-    if (!paymentForm.supply_amount) return;
+    const receivableTotal = Math.max(
+      payments?.summary.receivable_total || 0,
+      0,
+    );
+    const receivableVat = Math.min(
+      Math.max(payments?.summary.receivable_vat || 0, 0),
+      receivableTotal,
+    );
+    const paymentAmount = useFullReceivable
+      ? receivableTotal
+      : Number(paymentForm.supply_amount);
+    if (!paymentAmount) return;
     await api.createPayment(id, {
       stage: paymentForm.stage,
       method: paymentForm.method,
-      supply_amount: Number(paymentForm.supply_amount),
-      vat_amount: 0,
+      supply_amount: useFullReceivable
+        ? receivableTotal - receivableVat
+        : paymentAmount,
+      vat_amount: useFullReceivable ? receivableVat : 0,
       paid_at: new Date(`${paymentForm.paid_date}T00:00:00`).toISOString(),
       memo: paymentForm.memo,
     });
+    setUseFullReceivable(false);
     setPaymentForm({
       ...paymentForm,
       supply_amount: "",
@@ -1825,41 +1848,59 @@ function DetailPage({
           <div className="grid gap-x-6 gap-y-4 xl:grid-cols-2">
             <div className="grid gap-4 xl:row-span-2 xl:grid-rows-subgrid">
               <div className="panel overflow-hidden">
-                <div className="border-b border-[#edf0ec] p-5">
+                <div className="border-b border-[#e4ebe5] bg-[#f8faf8] p-5">
                   <h3 className="font-semibold text-[#294534]">공사비 항목</h3>
                   <p className="mt-1 text-xs text-[#8a968e]">
                     계약 + 추가 - 할인으로 최종 공사비가 계산됩니다.
                   </p>
                 </div>
                 {costs?.items.length ? (
-                  <div className="divide-y divide-[#edf0ec]">
+                  <div className="space-y-2 bg-[#fbfcfb] p-3">
                     {costs.items.map((cost) => (
                       <div
                         key={cost.id}
-                        className="flex items-center justify-between gap-4 p-5"
+                        className={`flex items-center justify-between gap-4 rounded-xl border border-[#e0e8e2] border-l-4 p-4 transition hover:border-[#cad8ce] hover:shadow-sm ${
+                          cost.item_type === "EXTRA"
+                            ? "border-l-[#ca8a43] bg-[#fffaf1]"
+                            : cost.item_type === "DISCOUNT"
+                              ? "border-l-[#8b72a0] bg-[#faf7fc]"
+                              : "border-l-[#5f8c6c] bg-[#f3f7f4]"
+                        }`}
                       >
-                        <div>
-                          <p className="text-sm font-semibold text-[#345344]">
-                            {cost.name}
-                          </p>
-                          <p className="mt-1 text-xs text-[#9aa49d]">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-[15px] font-bold text-[#294534]">
+                              {cost.name}
+                            </p>
+                            <span className="rounded-full border border-black/5 bg-white/80 px-2 py-0.5 text-[11px] font-semibold text-[#66736b]">
+                              {
+                                {
+                                  ESTIMATE: "견적",
+                                  CONTRACT: "계약",
+                                  EXTRA: "추가",
+                                  DISCOUNT: "할인",
+                                }[cost.item_type]
+                              }
+                            </span>
+                          </div>
+                          <p className="mt-1.5 text-xs text-[#66736b]">
                             공급가 {money(cost.supply_amount)} · 부가세{" "}
                             {money(cost.vat_amount)}
                           </p>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-semibold text-[#345344]">
+                        <div className="shrink-0 text-right">
+                          <p className="text-base font-bold text-[#18372b]">
                             {money(cost.amount)}
                           </p>
                           <button
-                            className="mt-1 text-[11px] text-[#a75d5d]"
+                            className="mt-2 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[#a15151] transition hover:bg-[#f9e8e6]"
                             onClick={async () => {
                               await api.deleteCost(id, cost.id);
                               setCosts(await api.costs(id));
                               setPayments(await api.payments(id));
                             }}
                           >
-                            삭제
+                            <Trash2 size={13} /> 삭제
                           </button>
                         </div>
                       </div>
@@ -1916,7 +1957,7 @@ function DetailPage({
 
             <div className="grid gap-4 xl:row-span-2 xl:grid-rows-subgrid">
               <div className="panel overflow-hidden">
-                <div className="border-b border-[#edf0ec] p-5">
+                <div className="border-b border-[#e1eae7] bg-[#f6faf8] p-5">
                   <h3 className="font-semibold text-[#294534]">
                     입금 내역
                   </h3>
@@ -1925,22 +1966,26 @@ function DetailPage({
                   </p>
                 </div>
                 {paidPayments.length ? (
-                  <div className="divide-y divide-[#edf0ec]">
+                  <div className="space-y-2 bg-[#fbfcfc] p-3">
                     {paidPayments.map((payment) => (
-                      <div key={payment.id} className="p-5">
+                      <div
+                        key={payment.id}
+                        className="rounded-xl border border-[#dce8e4] bg-[#f1f7f5] p-4 transition hover:border-[#c7d9d2] hover:shadow-sm"
+                      >
                         <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-[#345344]">
+                          <div className="min-w-0">
+                            <span className="inline-flex rounded-full bg-[#dcece5] px-2.5 py-1 text-xs font-bold text-[#315f48]">
                               {
                                 {
                                   DEPOSIT: "계약금",
                                   INTERIM: "중도금",
                                   BALANCE: "잔금",
+                                  LUMP_SUM: "일시불",
                                   OTHER: "기타",
                                 }[payment.stage]
                               }
-                            </p>
-                            <p className="mt-1 text-xs text-[#8a968e]">
+                            </span>
+                            <p className="mt-2 text-xs font-semibold text-[#52675c]">
                               입금일 {shortDate(payment.paid_at)} ·{" "}
                               {
                                 {
@@ -1951,26 +1996,26 @@ function DetailPage({
                                 }[payment.method]
                               }
                             </p>
-                            <p className="mt-1 text-xs text-[#9aa49d]">
+                            <p className="mt-1 text-xs text-[#66736b]">
                               공급가 {money(payment.supply_amount)} · 부가세{" "}
                               {money(payment.vat_amount)}
                             </p>
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm font-semibold text-[#345344]">
+                          <div className="shrink-0 text-right">
+                            <p className="text-base font-bold text-[#174433]">
                               {money(payment.total_amount)}
                             </p>
+                            <button
+                              className="mt-2 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[#a15151] transition hover:bg-[#f9e8e6]"
+                              onClick={async () => {
+                                await api.deletePayment(id, payment.id);
+                                setPayments(await api.payments(id));
+                              }}
+                            >
+                              <Trash2 size={13} /> 삭제
+                            </button>
                           </div>
                         </div>
-                        <button
-                          className="mt-2 text-[11px] text-[#a75d5d]"
-                          onClick={async () => {
-                            await api.deletePayment(id, payment.id);
-                            setPayments(await api.payments(id));
-                          }}
-                        >
-                          삭제
-                        </button>
                       </div>
                     ))}
                   </div>
@@ -2005,18 +2050,56 @@ function DetailPage({
                       })
                     }
                   />
-                  <MoneyInput
-                    className="field col-span-2"
-                    placeholder="입금액"
-                    value={paymentForm.supply_amount}
-                    onValueChange={(value) =>
-                      setPaymentForm({
-                        ...paymentForm,
-                        supply_amount: value,
-                      })
-                    }
-                    required
-                  />
+                  <div className="col-span-2">
+                    <div className="mb-1.5 flex items-center justify-between gap-3">
+                      <label className="label mb-0" htmlFor="payment-amount">
+                        입금액
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-[#496154]">
+                        <input
+                          className="h-4 w-4 accent-[#18372b]"
+                          type="checkbox"
+                          checked={useFullReceivable}
+                          disabled={
+                            (payments?.summary.receivable_total || 0) <= 0
+                          }
+                          onChange={(event) =>
+                            setUseFullReceivable(event.target.checked)
+                          }
+                        />
+                        미수금 전액
+                        <span className="font-medium text-[#7d8981]">
+                          {money(
+                            Math.max(
+                              payments?.summary.receivable_total || 0,
+                              0,
+                            ),
+                          )}
+                        </span>
+                      </label>
+                    </div>
+                    <MoneyInput
+                      id="payment-amount"
+                      className="field disabled:bg-[#f3f6f3] disabled:text-[#345344]"
+                      placeholder="입금액"
+                      value={
+                        useFullReceivable
+                          ? Math.max(
+                              payments?.summary.receivable_total || 0,
+                              0,
+                            )
+                          : paymentForm.supply_amount
+                      }
+                      onValueChange={(value) =>
+                        setPaymentForm({
+                          ...paymentForm,
+                          supply_amount: value,
+                        })
+                      }
+                      disabled={useFullReceivable}
+                      required
+                    />
+                  </div>
                   <div className="col-span-2">
                     <label className="label" htmlFor="payment-date">
                       입금일

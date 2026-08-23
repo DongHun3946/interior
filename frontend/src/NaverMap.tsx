@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { reportAppError } from "./errors";
 
 declare global {
   interface Window {
@@ -20,7 +21,9 @@ function loadNaverMaps(): Promise<void> {
   if (sdkPromise) return sdkPromise;
   const key = import.meta.env.VITE_NAVER_MAP_KEY_ID;
   if (!key)
-    return Promise.reject(new Error("Naver Maps 키가 설정되지 않았습니다."));
+    return Promise.reject(
+      new Error("지도 서비스를 사용할 수 있도록 준비되지 않았습니다."),
+    );
   sdkPromise = new Promise((resolve, reject) => {
     const callback = `initNaverMap_${Date.now()}`;
     (window as any)[callback] = () => {
@@ -28,12 +31,12 @@ function loadNaverMaps(): Promise<void> {
       resolve();
     };
     window.navermap_authFailure = () =>
-      reject(new Error("Naver Maps 인증에 실패했습니다."));
+      reject(new Error("지도 서비스에 연결할 수 없습니다."));
     const script = document.createElement("script");
     script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(key)}&callback=${callback}`;
     script.async = true;
     script.onerror = () =>
-      reject(new Error("Naver Maps를 불러오지 못했습니다."));
+      reject(new Error("지도를 불러오는 중 연결 문제가 발생했습니다."));
     document.head.appendChild(script);
   });
   return sdkPromise;
@@ -106,13 +109,14 @@ export default function NaverMap({
           });
         }
       })
-      .catch((reason) =>
-        setError(
+      .catch((reason) => {
+        const message =
           reason instanceof Error
             ? reason.message
-            : "지도를 불러오지 못했습니다.",
-        ),
-      );
+            : "지도를 불러오지 못했습니다.";
+        setError(message);
+        reportAppError(reason, message);
+      });
   }, [markers, selectable, initialCenter, onMapClick]);
 
   if (!markers.length && !selectable)

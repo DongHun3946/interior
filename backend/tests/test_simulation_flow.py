@@ -239,7 +239,7 @@ class SimulationFlowTest(unittest.TestCase):
             payment = client.post(
                 f"/api/v1/projects/{project_id}/payments",
                 json={
-                    "stage": "DEPOSIT",
+                    "stage": "LUMP_SUM",
                     "method": "BANK_TRANSFER",
                     "supply_amount": 5_000_000,
                     "paid_at": "2026-08-21T10:00:00+09:00",
@@ -247,6 +247,7 @@ class SimulationFlowTest(unittest.TestCase):
                 headers=headers,
             )
             self.assertEqual(payment.status_code, 201, payment.text)
+            self.assertEqual(payment.json()["stage"], "LUMP_SUM")
             self.assertNotIn("status", payment.json())
             self.assertNotIn("due_date", payment.json())
             payment_summary = client.get(

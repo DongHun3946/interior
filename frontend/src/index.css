@@ -16,6 +16,19 @@ button { cursor: pointer; }
   .mobile-bottom-safe { padding-bottom: 82px; }
 }
 
+/* Screen typography: keep dense admin information readable without affecting print layouts. */
+@media screen {
+  body { color: #22352b; font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  .text-xs { font-size: 13px; line-height: 1.5; }
+  .text-\[10px\] { font-size: 12px; line-height: 1.45; }
+  .text-\[11px\] { font-size: 12.5px; line-height: 1.45; }
+  .text-\[12px\] { font-size: 13px; line-height: 1.5; }
+  .text-\[\#9aa49d\], .text-\[\#9aa3ab\], .text-\[\#9bad9f\], .text-\[\#9baa9e\], .text-\[\#91a097\], .text-\[\#929d96\], .text-\[\#93a097\], .text-\[\#93a098\], .text-\[\#98a39b\], .text-\[\#8d9890\], .text-\[\#8ea297\], .text-\[\#8b95a1\] { color: #66736b; }
+  .text-\[\#849188\], .text-\[\#87938b\], .text-\[\#87948c\], .text-\[\#8a968e\], .text-\[\#8b978f\], .text-\[\#8c9990\], .text-\[\#7d8981\], .text-\[\#7f8d84\], .text-\[\#758078\], .text-\[\#75827a\], .text-\[\#718078\], .text-\[\#708078\], .text-\[\#728078\], .text-\[\#7d8a82\], .text-\[\#78857d\], .text-\[\#89958d\], .text-\[\#829087\], .text-\[\#829187\], .text-\[\#839188\], .text-\[\#819087\] { color: #596a60; }
+  input::placeholder, textarea::placeholder { color: #758279; opacity: 1; }
+  .field { font-size: 15px; line-height: 1.5; }
+}
+
 @media print {
   @page { size: A4; margin: 14mm; }
   #root { display: none !important; }
@@ -25,14 +38,39 @@ button { cursor: pointer; }
   .print-sheet table th, .print-sheet table td { border: 1px solid #cfd8d1; padding: 8px; }
   .print-sheet .company-info-table th, .print-sheet .company-info-table td { border-color: #555; padding: 3px 6px; line-height: 1.25; vertical-align: middle; }
   .print-sheet .company-info-table th { background: #f5f5f5; }
+  .estimate-print-customer { margin-top: 24px; padding: 16px 18px; border-left: 3px solid #17372b; background: #e8f1ed; }
+  .estimate-print-customer-label { margin: 0; color: #315d47; font-size: 9px; font-weight: 700; letter-spacing: .14em; }
+  .estimate-print-customer-name { margin: 6px 0 0; color: #17201d; font-size: 18px; font-weight: 750; letter-spacing: -.025em; }
+  .estimate-print-customer-address { margin: 5px 0 0; color: #59645f; font-size: 10px; line-height: 1.5; }
+  .estimate-print-table-title { margin: 28px 0 8px; color: #17201d; font-size: 15px; font-weight: 750; letter-spacing: -.02em; }
+  .estimate-print-table-frame { position: relative; }
+  .estimate-print-table-edge { position: absolute; z-index: 2; right: 0; left: 0; display: block; height: 0; pointer-events: none; }
+  .estimate-print-table-edge-top { top: 0; border-top: 1.5px solid #17372b; }
+  .estimate-print-table-edge-bottom { bottom: 0; border-top: 1px solid #9eaaa3; }
+  .print-sheet .estimate-print-lines { width: 100%; table-layout: fixed; border-collapse: collapse; border: 0; font-size: 11px; }
+  .estimate-print-lines .estimate-col-name { width: 14%; }
+  .estimate-print-lines .estimate-col-spec { width: 14%; }
+  .estimate-print-lines .estimate-col-unit { width: 9%; }
+  .estimate-print-lines .estimate-col-quantity { width: 9%; }
+  .estimate-print-lines .estimate-col-price { width: 18%; }
+  .estimate-print-lines .estimate-col-amount { width: 21%; }
+  .estimate-print-lines .estimate-col-memo { width: 15%; }
+  .print-sheet .estimate-print-lines th { padding: 8px 7px; border: 0; border-bottom: 1px solid #9eaaa3; background: transparent; color: #33443b; font-size: 10px; font-weight: 700; text-align: center; }
+  .print-sheet .estimate-print-lines td { height: 34px; padding: 8px 7px; border: 0; border-bottom: 1px solid #dfe4e1; color: #344139; vertical-align: middle; }
+  .print-sheet .estimate-print-lines th + th, .print-sheet .estimate-print-lines td + td { border-left: 1px solid #e1e6e3; }
+  .print-sheet .estimate-print-lines tbody tr:last-child td { border-bottom: 0; }
+  .estimate-print-lines .estimate-line-name { color: #17201d; font-weight: 700; }
+  .estimate-print-lines .estimate-cell-center { text-align: center; }
+  .estimate-print-lines .estimate-cell-number { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .estimate-print-lines .estimate-line-amount { color: #17201d; font-weight: 700; }
 }
 @layer components {
   .panel { @apply rounded-2xl border border-[#eaedef] bg-white shadow-[0_4px_18px_rgba(31,42,52,.035)]; }
   .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-[#18372b] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#285744] disabled:cursor-not-allowed disabled:opacity-50; }
   .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-[#dfe5df] bg-white px-4 py-2.5 text-sm font-semibold text-[#345344] transition hover:bg-[#f3f7f2]; }
   .field { @apply w-full rounded-xl border border-[#c9d3cb] bg-white px-3.5 py-3 text-sm text-[#22352b] outline-none transition placeholder:text-[#929f96] hover:border-[#aebdb2] focus:border-[#628b72] focus:ring-2 focus:ring-[#d9e9dd]; }
-  .label { @apply mb-1.5 block text-[13px] font-semibold text-[#69766e]; }
-  .value-text { @apply text-[15px] font-bold leading-6 text-[#263f31]; }
-  .value-copy { @apply text-sm font-medium leading-7 text-[#465a4d]; }
+  .label { @apply mb-1.5 block text-sm font-semibold text-[#596a60]; }
+  .value-text { @apply text-base font-bold leading-6 text-[#263f31]; }
+  .value-copy { @apply text-[15px] font-medium leading-7 text-[#465a4d]; }
   .required-mark { @apply text-red-500; }
 }

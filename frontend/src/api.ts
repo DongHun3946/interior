@@ -166,10 +166,6 @@ export const api = {
     request<void>(`/api/v1/projects/${projectId}/payments/${paymentId}`, {
       method: "DELETE",
     }),
-  geocode: (query: string) =>
-    request<GeocodeResult[]>(
-      `/api/v1/maps/geocode?q=${encodeURIComponent(query)}`,
-    ),
   reverseGeocode: (latitude: number, longitude: number) =>
     request<GeocodeResult>(
       `/api/v1/maps/reverse-geocode?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`,

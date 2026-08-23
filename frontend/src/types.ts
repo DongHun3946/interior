@@ -26,6 +26,7 @@ export interface Image {
   mime_type: string;
   file_size: number;
   caption?: string;
+  classification?: string;
   sort_order: number;
   is_cover: boolean;
   is_public: boolean;
@@ -130,6 +131,7 @@ export interface PublicImage {
   original_url: string;
   thumbnail_url: string;
   caption?: string;
+  classification?: string;
   sort_order: number;
   is_cover: boolean;
 }

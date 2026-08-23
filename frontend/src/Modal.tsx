@@ -30,7 +30,7 @@ export default function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-3 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -40,7 +40,7 @@ export default function Modal({
       }}
     >
       <div
-        className={`w-full overflow-hidden rounded-2xl border border-[#dfe4e0] bg-white shadow-[0_12px_32px_rgba(20,32,25,.18)] ${maxWidthClass}`}
+        className={`my-auto max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-2xl border border-[#dfe4e0] bg-white shadow-[0_12px_32px_rgba(20,32,25,.18)] sm:max-h-[calc(100dvh-2rem)] ${maxWidthClass}`}
       >
         <div className="flex items-start justify-between gap-4 px-5 py-4">
           <div>

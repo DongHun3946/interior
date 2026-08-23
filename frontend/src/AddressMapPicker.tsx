@@ -58,7 +58,7 @@ export default function AddressMapPicker({
     >
       <div className="relative">
           <NaverMap
-            className="h-[430px] w-full bg-[#edf2ed] sm:h-[520px]"
+            className="h-[320px] w-full bg-[#edf2ed] sm:h-[520px]"
             markers={markers}
             initialCenter={initialCenter}
             selectable

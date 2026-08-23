@@ -44,6 +44,31 @@ class UserLoginIdMigrationTest(unittest.TestCase):
             finally:
                 engine.dispose()
 
+    def test_project_image_classification_column_is_added(self):
+        with tempfile.TemporaryDirectory(prefix="interior-image-migration-") as temp_dir:
+            database_path = Path(temp_dir, "legacy.db").as_posix()
+            engine = create_engine(f"sqlite:///{database_path}")
+            try:
+                with engine.begin() as connection:
+                    connection.execute(
+                        text(
+                            "CREATE TABLE project_images ("
+                            "id VARCHAR(36) PRIMARY KEY, "
+                            "caption VARCHAR(300)"
+                            ")"
+                        )
+                    )
+
+                ensure_schema_compatibility(engine)
+
+                columns = {
+                    column["name"]
+                    for column in inspect(engine).get_columns("project_images")
+                }
+                self.assertIn("classification", columns)
+            finally:
+                engine.dispose()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -162,43 +162,6 @@ def update_company_settings(payload: CompanySettingsUpdate, _: User = Depends(re
     return company
 
 
-@app.get("/api/v1/maps/geocode", response_model=list[GeocodeResult])
-def geocode_address(q: str = Query(..., min_length=2, max_length=200), _: User = Depends(require_admin)):
-    if not settings.naver_maps_client_id or not settings.naver_maps_client_secret:
-        raise HTTPException(status_code=503, detail="Naver Maps API 키가 설정되지 않았습니다.")
-    try:
-        response = httpx.get(
-            "https://maps.apigw.ntruss.com/map-geocode/v2/geocode",
-            params={"query": q, "count": 10},
-            headers={
-                "x-ncp-apigw-api-key-id": settings.naver_maps_client_id,
-                "x-ncp-apigw-api-key": settings.naver_maps_client_secret,
-                "Accept": "application/json",
-            },
-            timeout=10,
-        )
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        if exc.response.status_code == 401:
-            raise HTTPException(status_code=502, detail="Naver Maps API Key ID와 API Key를 확인해 주세요.") from exc
-        if exc.response.status_code == 403:
-            raise HTTPException(status_code=502, detail="Naver Maps 애플리케이션의 Geocoding 사용 권한을 확인해 주세요.") from exc
-        if exc.response.status_code == 429:
-            raise HTTPException(status_code=502, detail="Naver Maps 애플리케이션에서 Geocoding API가 선택되어 있는지 또는 이용 한도를 확인해 주세요.") from exc
-        raise HTTPException(status_code=502, detail="Naver 주소 검색에 실패했습니다.") from exc
-    except httpx.RequestError as exc:
-        raise HTTPException(status_code=502, detail="Naver 주소 검색에 실패했습니다.") from exc
-    return [
-        GeocodeResult(
-            road_address=item.get("roadAddress") or item.get("jibunAddress") or q,
-            jibun_address=item.get("jibunAddress") or None,
-            latitude=item["y"],
-            longitude=item["x"],
-        )
-        for item in response.json().get("addresses", [])
-    ]
-
-
 def _reverse_address_text(item: dict) -> str:
     region = item.get("region") or {}
     parts = [
@@ -680,7 +643,7 @@ def convert_inquiry_to_project(inquiry_id: UUID, payload: InquiryConvert, user: 
         description=inquiry.memo,
         address=inquiry.address or "주소 미정",
         address_detail=inquiry.address_detail,
-        planned_start_date=payload.planned_start_date or inquiry.desired_start_date,
+        planned_start_date=payload.planned_start_date,
         planned_end_date=payload.planned_end_date,
         created_by=user.id,
     )

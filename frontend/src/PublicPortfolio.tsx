@@ -157,12 +157,17 @@ export default function PublicPortfolio() {
                   <button
                     key={image.id}
                     onClick={() => setLightbox(index)}
-                    className="group aspect-square overflow-hidden rounded-2xl bg-[#eef1f3]"
+                    className="group relative aspect-square overflow-hidden rounded-2xl bg-[#eef1f3]"
                   >
                     <img
                       src={mediaUrl(image.thumbnail_url)}
                       className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                     />
+                    {image.classification && (
+                      <span className="absolute bottom-3 left-3 rounded-lg bg-black/60 px-2.5 py-1 text-xs font-semibold text-white">
+                        {image.classification}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>

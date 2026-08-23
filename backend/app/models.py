@@ -207,6 +207,7 @@ class ProjectImage(Base):
     mime_type: Mapped[str] = mapped_column(String(100))
     file_size: Mapped[int] = mapped_column(Integer)
     caption: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    classification: Mapped[str | None] = mapped_column(String(100), nullable=True)
     taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     is_cover: Mapped[bool] = mapped_column(Boolean, default=False)

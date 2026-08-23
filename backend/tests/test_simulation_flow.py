@@ -159,7 +159,11 @@ class SimulationFlowTest(unittest.TestCase):
 
             inquiry = client.post(
                 "/api/v1/estimate-inquiries",
-                json={"customer_name": "삭제 테스트", "customer_phone": "010-1234-5678"},
+                json={
+                    "customer_name": "삭제 테스트",
+                    "customer_phone": "010-1234-5678",
+                    "desired_start_date": "2026-09-01",
+                },
                 headers=headers,
             )
             self.assertEqual(inquiry.status_code, 201, inquiry.text)
@@ -201,6 +205,8 @@ class SimulationFlowTest(unittest.TestCase):
                 headers=headers,
             )
             self.assertEqual(converted.status_code, 201, converted.text)
+            self.assertIsNone(converted.json()["planned_start_date"])
+            self.assertIsNone(converted.json()["planned_end_date"])
             project_id = converted.json()["id"]
 
             converted_costs = client.get(

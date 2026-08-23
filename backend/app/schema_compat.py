@@ -160,3 +160,15 @@ def ensure_schema_compatibility(engine: Engine) -> None:
                     ),
                     {"contract": "CONTRACT", "estimate": "ESTIMATE"},
                 )
+        if "project_images" in tables:
+            image_columns = {
+                column["name"]
+                for column in inspector.get_columns("project_images")
+            }
+            if "classification" not in image_columns:
+                connection.execute(
+                    text(
+                        "ALTER TABLE project_images "
+                        "ADD COLUMN classification VARCHAR(100)"
+                    )
+                )

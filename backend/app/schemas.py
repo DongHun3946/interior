@@ -89,6 +89,7 @@ class ImageOut(BaseModel):
     mime_type: str
     file_size: int
     caption: str | None
+    classification: str | None
     taken_at: datetime | None
     sort_order: int
     is_cover: bool
@@ -98,6 +99,7 @@ class ImageOut(BaseModel):
 class ImageUpdate(BaseModel):
     category: ImageCategory | None = None
     caption: str | None = None
+    classification: str | None = Field(default=None, max_length=100)
     sort_order: int | None = Field(default=None, ge=0)
     is_cover: bool | None = None
     is_public: bool | None = None
@@ -240,6 +242,7 @@ class PublicImageOut(BaseModel):
     original_url: str
     thumbnail_url: str
     caption: str | None = None
+    classification: str | None = None
     sort_order: int
     is_cover: bool
 

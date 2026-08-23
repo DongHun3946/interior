@@ -59,6 +59,7 @@ import { showDatePicker } from "./datePicker";
 import MoneyInput from "./MoneyInput";
 import IntegerInput from "./IntegerInput";
 import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
+import PhotoClassificationEditor from "./PhotoClassificationEditor";
 import ConfirmModal from "./ConfirmModal";
 import Modal from "./Modal";
 
@@ -84,6 +85,19 @@ const statusDots: Record<ProjectStatus, string> = {
   CANCELLED: "bg-[#c96f6f]",
 };
 const projectStatusOptions = Object.keys(statusLabels) as ProjectStatus[];
+const photoClassificationPresets = [
+  "거실",
+  "주방",
+  "싱크대",
+  "도배",
+  "욕실",
+  "침실",
+  "현관",
+  "베란다",
+  "붙박이장",
+  "바닥",
+  "조명",
+];
 const projectStatusFilterOptions: DropdownOption[] = [
   { value: "", label: "모든 상태" },
   ...projectStatusOptions.map((status) => ({
@@ -329,8 +343,8 @@ function Login({ onLogin }: { onLogin: () => void }) {
   };
   return (
     <main className="noise flex min-h-screen items-center justify-center bg-[#eff3ec] px-5 py-10">
-      <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-[0_30px_100px_rgba(26,55,40,.16)] md:grid-cols-[1fr_410px]">
-        <div className="relative hidden min-h-[600px] overflow-hidden bg-[#17372b] p-12 text-white md:block">
+      <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-[0_30px_100px_rgba(26,55,40,.16)] lg:grid-cols-[1fr_410px]">
+        <div className="relative hidden min-h-[600px] overflow-hidden bg-[#17372b] p-12 text-white lg:block">
           <div className="absolute -right-20 -top-24 h-80 w-80 rounded-full border border-white/10" />
           <div className="absolute bottom-12 left-12 h-28 w-28 rounded-full border border-white/10" />
           <div className="relative flex h-full flex-col justify-between">
@@ -443,7 +457,7 @@ function Sidebar({
   return (
     <>
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-[#17372b] px-5 py-7 text-white transition-transform lg:static lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed inset-y-0 left-0 z-30 flex w-64 transform flex-col overflow-y-auto bg-[#17372b] px-5 py-7 text-white transition-transform lg:static lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="flex items-center justify-between px-2">
           <div>
@@ -499,7 +513,7 @@ function Sidebar({
         </div>
         <button
           onClick={onLogout}
-          className="absolute bottom-7 left-8 flex items-center gap-3 text-sm text-[#aec7b5] hover:text-white"
+          className="mt-auto flex items-center gap-3 px-3 pt-8 text-sm text-[#aec7b5] hover:text-white"
         >
           <LogOut size={17} />
           로그아웃
@@ -734,30 +748,52 @@ function DashboardPage({
             )}
           </div>
         </div>
-        <div className="panel overflow-hidden bg-[#e8f0e7] p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-semibold text-[#63816b]">
-                한눈에 보기
-              </p>
-              <h3 className="serif mt-2 text-2xl leading-tight text-[#244630]">
-                완료한 현장을
-                <br />
-                사례로 남겨보세요.
-              </h3>
+        <div className="panel relative isolate flex min-h-[300px] flex-col overflow-hidden bg-gradient-to-br from-[#eaf2e9] via-[#f1f6ef] to-[#dfeade] p-6 sm:p-7">
+          <div className="pointer-events-none absolute -right-16 -top-20 -z-10 h-52 w-52 rounded-full border-[36px] border-white/40" />
+          <div className="pointer-events-none absolute -bottom-20 -left-16 -z-10 h-48 w-48 rounded-full bg-white/30" />
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/80 bg-white/75 text-[#3f7050] shadow-[0_8px_20px_rgba(45,86,57,.10)] backdrop-blur-sm">
+              <ClipboardList size={20} strokeWidth={2} />
             </div>
-            <ArrowUpRight className="text-[#62866b]" />
+            <span className="rounded-full border border-[#cbdcca] bg-white/65 px-3 py-1 text-[10px] font-bold tracking-wide text-[#63816b]">
+              외부 서비스
+            </span>
           </div>
-          <p className="mt-5 text-sm leading-6 text-[#64806b]">
-            대표 사진과 이야기를 공개 사례로 설정하면 새로운 고객에게 작업을
-            보여줄 수 있습니다.
-          </p>
-          <button
-            className="mt-7 rounded-xl bg-[#294c35] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#1e3b29]"
-            onClick={onProjects}
-          >
-            현장 관리 열기
-          </button>
+          <div className="mt-6">
+            <p className="text-xs font-bold text-[#63816b]">업무 바로가기</p>
+            <h3 className="serif mt-2 text-2xl leading-snug text-[#244630]">
+              전자세금계산서
+              <br />
+              발급이 필요하신가요?
+            </h3>
+            <p className="mt-3 max-w-md text-sm leading-6 text-[#64806b]">
+              국세청 홈택스에서 전자세금계산서를 발급하거나 발급 내역을
+              조회할 수 있습니다.
+            </p>
+          </div>
+          <div className="mt-auto pt-6">
+            <a
+              href="https://www.hometax.go.kr/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex w-full items-center justify-between rounded-xl bg-[#294c35] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(29,62,40,.16)] transition hover:-translate-y-0.5 hover:bg-[#1e3b29] hover:shadow-[0_12px_24px_rgba(29,62,40,.20)] focus:outline-none focus:ring-2 focus:ring-[#628b72] focus:ring-offset-2"
+              aria-label="국세청 홈택스 새 창으로 열기"
+            >
+              <span>
+                홈택스 새 창으로 열기
+                <span className="ml-2 text-[10px] font-medium text-white/65">
+                  로그인 필요
+                </span>
+              </span>
+              <ArrowUpRight
+                size={17}
+                className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+              />
+            </a>
+            <p className="mt-2.5 text-center text-[11px] text-[#7b8e80]">
+              공동·금융인증서 로그인이 필요할 수 있습니다.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -908,7 +944,7 @@ function ProjectsPage({
             {showArchived ? "삭제된 현장" : "전체 현장"}
           </h2>
         </div>
-        <div className="flex gap-2 self-start sm:self-auto">
+        <div className="flex flex-wrap gap-2 self-start sm:self-auto">
           <button
             type="button"
             className="btn-secondary"
@@ -1054,7 +1090,7 @@ function MapLocationPicker({
     >
       <div className="relative">
           <NaverMap
-            className="h-[430px] w-full bg-[#edf2ed] sm:h-[520px]"
+            className="h-[320px] w-full bg-[#edf2ed] sm:h-[520px]"
             markers={pickerMarkers}
             initialCenter={initialCenter}
             selectable
@@ -1136,9 +1172,6 @@ function ProjectForm({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [geocoding, setGeocoding] = useState(false);
-  const [geocodeResults, setGeocodeResults] = useState<GeocodeResult[]>([]);
-  const [geocodeMessage, setGeocodeMessage] = useState("");
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const set = (key: string, value: unknown) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -1162,38 +1195,6 @@ function ProjectForm({
     } finally {
       setSaving(false);
     }
-  };
-  const searchAddress = async () => {
-    const query = String(form.address || "").trim();
-    if (!query) {
-      setGeocodeMessage("검색할 주소를 입력해 주세요.");
-      return;
-    }
-    setGeocoding(true);
-    setError("");
-    setGeocodeMessage("");
-    try {
-      const results = await api.geocode(query);
-      setGeocodeResults(results);
-      if (!results.length)
-        setGeocodeMessage(
-          "검색 결과가 없습니다. 도로명이나 지번 주소로 다시 검색해 주세요.",
-        );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "주소 검색에 실패했습니다.");
-    } finally {
-      setGeocoding(false);
-    }
-  };
-  const chooseAddress = (result: GeocodeResult) => {
-    setForm((prev) => ({
-      ...prev,
-      address: result.road_address || result.jibun_address || "",
-      latitude: result.latitude,
-      longitude: result.longitude,
-    }));
-    setGeocodeResults([]);
-    setGeocodeMessage("");
   };
   return (
     <div className="mx-auto max-w-3xl p-5 sm:p-8">
@@ -1287,7 +1288,7 @@ function ProjectForm({
               <label className="label">
                 주소 <span className="required-mark">*</span>
               </label>
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <input
                   className="field"
                   value={String(form.address || "")}
@@ -1298,26 +1299,10 @@ function ProjectForm({
                       latitude: null,
                       longitude: null,
                     }));
-                    setGeocodeResults([]);
-                    setGeocodeMessage("");
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      void searchAddress();
-                    }
                   }}
                   required
                   placeholder="도로명 주소를 입력하세요"
                 />
-                <button
-                  type="button"
-                  className="btn-secondary shrink-0"
-                  onClick={searchAddress}
-                  disabled={geocoding}
-                >
-                  <Search size={15} /> {geocoding ? "검색 중" : "주소 검색"}
-                </button>
                 <button
                   type="button"
                   className="btn-secondary shrink-0"
@@ -1326,23 +1311,6 @@ function ProjectForm({
                   <MapPin size={15} /> 지도에서 선택
                 </button>
               </div>
-              {geocodeResults.length > 0 && (
-                <div className="mt-2 overflow-hidden rounded-xl border border-[#dfe6df] bg-white">
-                  {geocodeResults.map((result) => (
-                    <button
-                      type="button"
-                      key={`${result.latitude}-${result.longitude}`}
-                      className="block w-full border-b border-[#edf0ec] px-4 py-3 text-left text-sm text-[#42584a] last:border-0 hover:bg-[#f5f8f5]"
-                      onClick={() => chooseAddress(result)}
-                    >
-                      {result.road_address || result.jibun_address}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {geocodeMessage && (
-                <p className="mt-2 text-xs text-[#8a968e]">{geocodeMessage}</p>
-              )}
               {form.latitude && form.longitude ? (
                 <p className="mt-2 text-xs text-[#64806c]">
                   지도 좌표가 등록되었습니다.
@@ -1420,8 +1388,6 @@ function ProjectForm({
               latitude: result.latitude,
               longitude: result.longitude,
             }));
-            setGeocodeResults([]);
-            setGeocodeMessage("");
             setMapPickerOpen(false);
           }}
         />
@@ -1456,6 +1422,10 @@ function DetailPage({
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [imageToDelete, setImageToDelete] = useState<Image | null>(null);
+  const [photoClassificationFilter, setPhotoClassificationFilter] =
+    useState("");
+  const [savingPhotoClassificationId, setSavingPhotoClassificationId] =
+    useState<string | null>(null);
   const [deletingImage, setDeletingImage] = useState(false);
   const [projectDeleteOpen, setProjectDeleteOpen] = useState(false);
   const [deletingProject, setDeletingProject] = useState(false);
@@ -1487,6 +1457,20 @@ function DetailPage({
       .catch(() => {});
   };
   useEffect(load, [id]);
+  useEffect(() => {
+    setPhotoClassificationFilter("");
+  }, [id]);
+  useEffect(() => {
+    if (
+      photoClassificationFilter &&
+      photoClassificationFilter !== "__unclassified__" &&
+      project &&
+      !project.images.some(
+        (image) => image.classification === photoClassificationFilter,
+      )
+    )
+      setPhotoClassificationFilter("");
+  }, [photoClassificationFilter, project]);
   const upload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1597,6 +1581,57 @@ function DetailPage({
         현장 정보를 불러오는 중입니다…
       </div>
     );
+  const photoClassifications = Array.from(
+    new Set(
+      project.images
+        .map((image) => image.classification?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ).sort((left, right) => left.localeCompare(right, "ko"));
+  const filteredPhotos = project.images.filter((image) => {
+    if (!photoClassificationFilter) return true;
+    if (photoClassificationFilter === "__unclassified__")
+      return !image.classification?.trim();
+    return image.classification === photoClassificationFilter;
+  });
+  const unclassifiedPhotoCount = project.images.filter(
+    (image) => !image.classification?.trim(),
+  ).length;
+  const photoClassificationOptions = Array.from(
+    new Set([...photoClassificationPresets, ...photoClassifications]),
+  );
+  const updatePhotoClassification = async (
+    imageId: string,
+    classification: string,
+  ) => {
+    setSavingPhotoClassificationId(imageId);
+    setError("");
+    try {
+      await api.updateImage(id, imageId, {
+        classification: classification || null,
+      });
+      setProject((current) =>
+        current
+          ? {
+              ...current,
+              images: current.images.map((image) =>
+                image.id === imageId
+                  ? { ...image, classification: classification || undefined }
+                  : image,
+              ),
+            }
+          : current,
+      );
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "사진 분류를 저장하지 못했습니다.",
+      );
+    } finally {
+      setSavingPhotoClassificationId(null);
+    }
+  };
   const paidPayments = payments?.items || [];
   return (
     <div className="space-y-6 p-5 sm:p-8">
@@ -1638,7 +1673,7 @@ function DetailPage({
           </button>
         </div>
       </div>
-      <div className="flex gap-1 border-b border-[#e6eae5]">
+      <div className="flex gap-1 overflow-x-auto border-b border-[#e6eae5]">
         {[
           ["overview", "현장 개요"],
           ["photos", `사진 ${project.images.length}`],
@@ -1648,7 +1683,7 @@ function DetailPage({
           <button
             key={key}
             onClick={() => setTab(key as typeof tab)}
-            className={`border-b-2 px-4 py-3 text-sm font-semibold transition ${tab === key ? "border-[#3d7650] text-[#315f40]" : "border-transparent text-[#9aa49d] hover:text-[#577060]"}`}
+            className={`shrink-0 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold transition ${tab === key ? "border-[#3d7650] text-[#315f40]" : "border-transparent text-[#9aa49d] hover:text-[#577060]"}`}
           >
             {label}
           </button>
@@ -1658,7 +1693,7 @@ function DetailPage({
         <div className="grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
           <section className="panel p-5 sm:p-7">
             <h3 className="font-semibold text-[#294534]">현장 정보</h3>
-            <div className="mt-5 grid grid-cols-2 gap-y-6 text-sm">
+            <div className="mt-5 grid gap-y-6 text-sm sm:grid-cols-2">
               <div>
                 <p className="label">상태</p>
                 <Badge status={project.status} />
@@ -1746,57 +1781,148 @@ function DetailPage({
             </p>
           )}
           {project.images.length ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {project.images.map((image) => (
-                <div
-                  key={image.id}
-                  className="group relative aspect-square overflow-hidden rounded-2xl bg-[#edf2ed]"
-                >
-                  <img
-                    src={mediaUrl(image.thumbnail_url)}
-                    className="h-full w-full object-cover"
-                  />
-                  {image.is_cover && (
-                    <span className="absolute bottom-3 right-3 rounded bg-white/90 px-1.5 py-0.5 text-[9px] font-bold text-[#355d40] shadow-sm">
-                      대표
-                    </span>
-                  )}
+            <>
+              <div className="panel p-4 sm:p-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="mr-1 text-sm font-semibold text-[#405a4b]">
+                    분류별 보기
+                  </span>
                   <button
-                    className="absolute right-2 top-2 rounded-lg bg-black/35 p-1.5 text-white opacity-0 transition group-hover:opacity-100"
-                    onClick={() => setImageToDelete(image)}
-                    aria-label="사진 삭제"
+                    type="button"
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                      !photoClassificationFilter
+                        ? "bg-[#18372b] text-white"
+                        : "border border-[#d4ded6] bg-white text-[#52675a] hover:bg-[#f2f6f3]"
+                    }`}
+                    onClick={() => setPhotoClassificationFilter("")}
                   >
-                    <Trash2 size={14} />
+                    전체 {project.images.length}
                   </button>
-                  <div className="absolute left-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
-                    <button
-                      className={`rounded-lg px-2 py-1 text-[10px] font-semibold ${image.is_public ? "bg-[#3d7650] text-white" : "bg-white/90 text-[#355d40]"}`}
-                      onClick={async () => {
-                        await api.updateImage(id, image.id, {
-                          is_public: !image.is_public,
-                        });
-                        load();
-                      }}
-                    >
-                      {image.is_public ? "공개" : "비공개"}
-                    </button>
-                    {!image.is_cover && (
+                  {photoClassifications.map((classification) => {
+                    const count = project.images.filter(
+                      (image) => image.classification === classification,
+                    ).length;
+                    return (
                       <button
-                        className="rounded-lg bg-white/90 px-2 py-1 text-[10px] font-semibold text-[#355d40]"
-                        onClick={async () => {
-                          await api.updateImage(id, image.id, {
-                            is_cover: true,
-                          });
-                          load();
-                        }}
+                        type="button"
+                        key={classification}
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                          photoClassificationFilter === classification
+                            ? "bg-[#18372b] text-white"
+                            : "border border-[#d4ded6] bg-white text-[#52675a] hover:bg-[#f2f6f3]"
+                        }`}
+                        onClick={() =>
+                          setPhotoClassificationFilter(classification)
+                        }
                       >
-                        대표 지정
+                        {classification} {count}
                       </button>
-                    )}
-                  </div>
+                    );
+                  })}
+                  {unclassifiedPhotoCount > 0 && (
+                    <button
+                      type="button"
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                        photoClassificationFilter === "__unclassified__"
+                          ? "bg-[#18372b] text-white"
+                          : "border border-[#d4ded6] bg-white text-[#52675a] hover:bg-[#f2f6f3]"
+                      }`}
+                      onClick={() =>
+                        setPhotoClassificationFilter("__unclassified__")
+                      }
+                    >
+                      미분류 {unclassifiedPhotoCount}
+                    </button>
+                  )}
                 </div>
-              ))}
-            </div>
+              </div>
+              {filteredPhotos.length ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {filteredPhotos.map((image) => (
+                  <div key={image.id} className="panel overflow-hidden">
+                    <div className="group relative aspect-square bg-[#edf2ed]">
+                      <img
+                        src={mediaUrl(image.thumbnail_url)}
+                        className="h-full w-full object-cover"
+                      />
+                      {image.classification && (
+                        <span className="absolute bottom-3 left-3 rounded-lg bg-black/60 px-2 py-1 text-[11px] font-semibold text-white">
+                          {image.classification}
+                        </span>
+                      )}
+                      {image.is_cover && (
+                        <span className="absolute bottom-3 right-3 rounded bg-white/90 px-1.5 py-0.5 text-[9px] font-bold text-[#355d40] shadow-sm">
+                          대표
+                        </span>
+                      )}
+                      <button
+                        className="absolute right-2 top-2 rounded-lg bg-black/45 p-1.5 text-white opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100"
+                        onClick={() => setImageToDelete(image)}
+                        aria-label="사진 삭제"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                      <div className="absolute left-2 top-2 flex gap-1 opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100">
+                        <button
+                          className={`rounded-lg px-2 py-1 text-[10px] font-semibold ${image.is_public ? "bg-[#3d7650] text-white" : "bg-white/90 text-[#355d40]"}`}
+                          onClick={async () => {
+                            await api.updateImage(id, image.id, {
+                              is_public: !image.is_public,
+                            });
+                            load();
+                          }}
+                        >
+                          {image.is_public ? "공개" : "비공개"}
+                        </button>
+                        {!image.is_cover && (
+                          <button
+                            className="rounded-lg bg-white/90 px-2 py-1 text-[10px] font-semibold text-[#355d40]"
+                            onClick={async () => {
+                              await api.updateImage(id, image.id, {
+                                is_cover: true,
+                              });
+                              load();
+                            }}
+                          >
+                            대표 지정
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="border-t border-[#e2e8e3] bg-[#f7faf7] p-3">
+                      <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
+                        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[#607368]">
+                          <ImageIcon size={13} aria-hidden="true" />
+                          사진 분류
+                        </span>
+                        {savingPhotoClassificationId === image.id && (
+                          <span className="text-[10px] font-medium text-[#628b72]">
+                            저장 중…
+                          </span>
+                        )}
+                      </div>
+                      <PhotoClassificationEditor
+                        value={image.classification || ""}
+                        options={photoClassificationOptions}
+                        onSave={(classification) =>
+                          void updatePhotoClassification(
+                            image.id,
+                            classification,
+                          )
+                        }
+                        disabled={savingPhotoClassificationId === image.id}
+                      />
+                    </div>
+                  </div>
+                  ))}
+                </div>
+              ) : (
+                <Empty
+                  title="해당 분류의 사진이 없습니다"
+                  message="다른 분류를 선택하거나 사진 분류를 변경해 주세요."
+                />
+              )}
+            </>
           ) : (
             <Empty
               title="사진이 없습니다"
@@ -1923,7 +2049,7 @@ function DetailPage({
                   }
                   required
                 />
-                <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   <MoneyInput
                     className="field"
                     placeholder="공급가액"
@@ -2027,7 +2153,7 @@ function DetailPage({
               </div>
               <form className="panel p-5" onSubmit={addPayment}>
                 <h3 className="font-semibold text-[#294534]">입금 내역 추가</h3>
-                <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   <DropdownSelect
                     value={paymentForm.stage}
                     options={paymentStageOptions}
@@ -2050,7 +2176,7 @@ function DetailPage({
                       })
                     }
                   />
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <div className="mb-1.5 flex items-center justify-between gap-3">
                       <label className="label mb-0" htmlFor="payment-amount">
                         입금액
@@ -2100,7 +2226,7 @@ function DetailPage({
                       required
                     />
                   </div>
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="label" htmlFor="payment-date">
                       입금일
                     </label>
@@ -2178,7 +2304,7 @@ function MapPage({ onOpen }: { onOpen: (id: string) => void }) {
   return (
     <div className="grid gap-5 p-5 sm:p-8 lg:grid-cols-[1fr_320px]">
       <NaverMap
-        className="min-h-[560px] overflow-hidden rounded-[24px] border border-[#e2e8e2] bg-[#edf2ed]"
+        className="min-h-[420px] overflow-hidden rounded-[24px] border border-[#e2e8e2] bg-[#edf2ed] sm:min-h-[560px]"
         markers={mapped.map((project) => ({
           id: project.id,
           latitude: Number(project.latitude),
@@ -2211,7 +2337,7 @@ function MapPage({ onOpen }: { onOpen: (id: string) => void }) {
                 <p className="mt-1 text-xs text-[#8a968e]">{project.address}</p>
                 {project.latitude == null && (
                   <p className="mt-1 text-[11px] text-[#b07855]">
-                    주소 검색으로 좌표 등록 필요
+                    지도에서 위치 등록 필요
                   </p>
                 )}
               </button>

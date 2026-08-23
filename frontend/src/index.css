@@ -65,7 +65,7 @@ button { cursor: pointer; }
   .estimate-print-lines .estimate-line-amount { color: #17201d; font-weight: 700; }
 }
 @layer components {
-  .panel { @apply rounded-2xl border border-[#eaedef] bg-white shadow-[0_4px_18px_rgba(31,42,52,.035)]; }
+  .panel { @apply rounded-2xl border border-[#cdd9d0] bg-white shadow-[0_10px_28px_rgba(24,55,43,.11)]; }
   .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-[#18372b] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#285744] disabled:cursor-not-allowed disabled:opacity-50; }
   .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-[#dfe5df] bg-white px-4 py-2.5 text-sm font-semibold text-[#345344] transition hover:bg-[#f3f7f2]; }
   .field { @apply w-full rounded-xl border border-[#c9d3cb] bg-white px-3.5 py-3 text-sm text-[#22352b] outline-none transition placeholder:text-[#929f96] hover:border-[#aebdb2] focus:border-[#628b72] focus:ring-2 focus:ring-[#d9e9dd]; }

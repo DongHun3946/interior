@@ -818,7 +818,7 @@ export default function SimulationWorkspace({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <DropdownSelect
-            className="min-w-32"
+            className="w-full sm:w-auto sm:min-w-32"
             value={version.id}
             options={[...simulation.versions].reverse().map((item) => ({
               value: item.id,
@@ -841,7 +841,7 @@ export default function SimulationWorkspace({
             }}
           />
           <button
-            className="btn-secondary"
+            className="btn-secondary flex-1 sm:flex-none"
             onClick={saveAsVersion}
             disabled={saving}
           >
@@ -849,7 +849,7 @@ export default function SimulationWorkspace({
             {isCurrent ? "새 버전" : "이 버전 복원"}
           </button>
           <button
-            className="btn-secondary"
+            className="btn-secondary flex-1 sm:flex-none"
             onClick={verify}
             disabled={saving || dirty || Boolean(version.verified_at)}
           >
@@ -857,7 +857,7 @@ export default function SimulationWorkspace({
             치수 확인
           </button>
           <button
-            className="btn-primary"
+            className="btn-primary flex-1 sm:flex-none"
             onClick={save}
             disabled={saving || !dirty || !isCurrent}
           >

@@ -326,7 +326,7 @@ function InquiryForm({
         onSubmit={submit}
         className="panel mx-auto max-w-5xl overflow-hidden"
       >
-        <div className="border-b border-[#e8ece8] px-6 py-5">
+        <div className="border-b border-[#e8ece8] px-4 py-5 sm:px-6">
           <p className="text-xs font-bold uppercase tracking-[.15em] text-[#7d9183]">
             Customer inquiry
           </p>
@@ -334,7 +334,7 @@ function InquiryForm({
             {inquiry ? "상담 정보 수정" : "새 견적 문의 등록"}
           </h2>
         </div>
-        <div className="grid gap-5 p-6 md:grid-cols-2">
+        <div className="grid gap-5 p-4 sm:p-6 md:grid-cols-2">
           <div>
             <label className="label">
               고객명 <span className="required-mark">*</span>
@@ -484,7 +484,7 @@ function InquiryForm({
             </p>
           )}
         </div>
-        <div className="flex justify-end gap-3 border-t border-[#e8ece8] bg-[#fafbf9] px-6 py-4">
+        <div className="flex flex-wrap justify-end gap-3 border-t border-[#e8ece8] bg-[#fafbf9] px-4 py-4 sm:px-6">
           <button type="button" className="btn-secondary" onClick={onCancel}>
             취소
           </button>
@@ -630,7 +630,7 @@ function EstimateEditor({
         onSubmit={submit}
         className="panel mx-auto max-w-6xl overflow-hidden"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8ece8] px-6 py-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8ece8] px-4 py-5 sm:px-6">
           <div>
             <p className="text-xs font-semibold text-[#829187]">
               {newVersion
@@ -650,7 +650,7 @@ function EstimateEditor({
             </p>
           </div>
         </div>
-        <div className="border-b border-[#edf0ed] p-6">
+        <div className="border-b border-[#edf0ed] p-4 sm:p-6">
           <div>
             <label className="label">견적서 제목</label>
             <input
@@ -660,7 +660,7 @@ function EstimateEditor({
             />
           </div>
         </div>
-        <div className="space-y-3 p-6">
+        <div className="space-y-3 p-4 sm:p-6">
           <div className="hidden grid-cols-[1.2fr_1fr_70px_80px_120px_120px_1fr_42px] gap-2 px-2 text-xs font-semibold text-[#75827a] lg:grid">
             <span>품명</span>
             <span>규격</span>
@@ -678,12 +678,14 @@ function EstimateEditor({
             >
               <input
                 className="field px-2 py-2"
+                placeholder="품명"
                 value={line.name}
                 onChange={(e) => updateLine(index, { name: e.target.value })}
                 required
               />
               <input
                 className="field px-2 py-2"
+                placeholder="규격"
                 value={line.specification || ""}
                 onChange={(e) =>
                   updateLine(index, { specification: e.target.value })
@@ -691,11 +693,13 @@ function EstimateEditor({
               />
               <input
                 className="field px-2 py-2"
+                placeholder="단위"
                 value={line.unit}
                 onChange={(e) => updateLine(index, { unit: e.target.value })}
               />
               <input
                 className="field px-2 py-2"
+                placeholder="수량"
                 step="any"
                 type="number"
                 value={Number(line.quantity) > 0 ? line.quantity : ""}
@@ -707,6 +711,7 @@ function EstimateEditor({
               />
               <MoneyInput
                 className="field px-2 py-2 text-right"
+                placeholder="단가"
                 value={line.unit_price}
                 onValueChange={(value) =>
                   updateLine(index, { unit_price: Number(value || 0) })
@@ -720,6 +725,7 @@ function EstimateEditor({
               </div>
               <input
                 className="field px-2 py-2"
+                placeholder="비고"
                 value={line.memo || ""}
                 onChange={(e) => updateLine(index, { memo: e.target.value })}
               />
@@ -1048,7 +1054,7 @@ function InquiryDetail({
     setConvertError("");
     setConvertForm({
       project_title: `${inquiry.customer_name} 고객 현장`,
-      planned_start_date: inquiry.desired_start_date || "",
+      planned_start_date: "",
       planned_end_date: "",
     });
   };
@@ -1059,7 +1065,11 @@ function InquiryDetail({
       setConvertError("현장명을 입력해 주세요.");
       return;
     }
-    if (convertForm.planned_end_date < convertForm.planned_start_date) {
+    if (
+      convertForm.planned_start_date &&
+      convertForm.planned_end_date &&
+      convertForm.planned_end_date < convertForm.planned_start_date
+    ) {
       setConvertError("공사 종료일은 시작일보다 빠를 수 없습니다.");
       return;
     }
@@ -1068,8 +1078,8 @@ function InquiryDetail({
     try {
       const project = await api.convertInquiry(inquiry.id, {
         project_title: convertForm.project_title.trim(),
-        planned_start_date: convertForm.planned_start_date,
-        planned_end_date: convertForm.planned_end_date,
+        planned_start_date: convertForm.planned_start_date || null,
+        planned_end_date: convertForm.planned_end_date || null,
       });
       setConvertForm(null);
       onOpenProject(project.id);
@@ -1378,7 +1388,7 @@ function InquiryDetail({
               </p>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {inquiry.converted_project_id ? (
               inquiry.converted_project_archived ? (
                 <button
@@ -1461,7 +1471,6 @@ function InquiryDetail({
                       planned_start_date: event.target.value,
                     })
                   }
-                  required
                 />
               </div>
               <div>
@@ -1481,7 +1490,6 @@ function InquiryDetail({
                       planned_end_date: event.target.value,
                     })
                   }
-                  required
                 />
               </div>
             </div>

@@ -14,8 +14,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from .core.config import get_settings
 from .db import Base, engine, get_db
-from .models import CompanySettings, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, Project, ProjectImage, ProjectStatus, ProjectStatusHistory, User, UserRole
-from .schemas import AdminImageList, AdminImageOut, CompanySettingsOut, CompanySettingsUpdate, ContractEstimateLineOut, ContractEstimateReference, CostSummary, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
+from .models import CompanySettings, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, Project, ProjectContractEstimateHistory, ProjectImage, ProjectStatus, ProjectStatusHistory, User, UserRole
+from .schemas import AdminImageList, AdminImageOut, CompanySettingsOut, CompanySettingsUpdate, ContractEstimateApply, ContractEstimateHistoryOut, ContractEstimateLineOut, ContractEstimateReference, CostSummary, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
 from .security import create_access_token, get_current_user, hash_password, verify_password
 from .schema_compat import ensure_schema_compatibility
 from .storage import save_upload
@@ -341,6 +341,60 @@ def change_status(project_id: UUID, payload: StatusChange, user: User = Depends(
 def status_history(project_id: UUID, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     project_or_404(db, project_id)
     return db.scalars(select(ProjectStatusHistory).where(ProjectStatusHistory.project_id == project_id).order_by(ProjectStatusHistory.created_at.desc())).all()
+
+
+@app.patch("/api/v1/projects/{project_id}/contract-estimate", response_model=ProjectOut)
+def apply_contract_estimate(
+    project_id: UUID,
+    payload: ContractEstimateApply,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    project = project_or_404(db, project_id)
+    estimate = db.scalar(
+        select(EstimateDocument)
+        .join(EstimateInquiry, EstimateInquiry.id == EstimateDocument.inquiry_id)
+        .where(
+            EstimateDocument.id == payload.estimate_id,
+            EstimateInquiry.converted_project_id == project_id,
+            EstimateInquiry.deleted_at.is_(None),
+        )
+    )
+    if not estimate:
+        raise HTTPException(
+            status_code=400,
+            detail="이 현장과 연결된 상담의 견적서만 적용할 수 있습니다.",
+        )
+    if project.contract_estimate_id == estimate.id:
+        return project_or_404(db, project.id)
+    db.add(
+        ProjectContractEstimateHistory(
+            project_id=project.id,
+            from_estimate_id=project.contract_estimate_id,
+            to_estimate_id=estimate.id,
+            changed_by=user.id,
+        )
+    )
+    project.contract_estimate_id = estimate.id
+    db.commit()
+    return project_or_404(db, project.id)
+
+
+@app.get(
+    "/api/v1/projects/{project_id}/contract-estimate-history",
+    response_model=list[ContractEstimateHistoryOut],
+)
+def contract_estimate_history(
+    project_id: UUID,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    project_or_404(db, project_id)
+    return db.scalars(
+        select(ProjectContractEstimateHistory)
+        .where(ProjectContractEstimateHistory.project_id == project_id)
+        .order_by(ProjectContractEstimateHistory.created_at.desc())
+    ).all()
 
 
 @app.get("/api/v1/projects/{project_id}/costs", response_model=dict)
@@ -685,14 +739,38 @@ def delete_estimate_inquiry(inquiry_id: UUID, _: User = Depends(require_admin), 
 
 
 @app.post("/api/v1/estimate-inquiries/{inquiry_id}/estimates", response_model=EstimateOut, status_code=201)
-def create_estimate_document(inquiry_id: UUID, payload: EstimateCreate, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+def create_estimate_document(
+    inquiry_id: UUID,
+    payload: EstimateCreate,
+    apply_project_id: UUID | None = None,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
     inquiry = inquiry_or_404(db, inquiry_id)
+    project = None
+    if apply_project_id:
+        if inquiry.converted_project_id != apply_project_id:
+            raise HTTPException(
+                status_code=400,
+                detail="이 상담과 연결된 현장에만 견적서를 적용할 수 있습니다.",
+            )
+        project = project_or_404(db, apply_project_id)
     version = (db.scalar(select(func.max(EstimateDocument.version)).where(EstimateDocument.inquiry_id == inquiry_id)) or 0) + 1
     values = payload.model_dump(exclude={"lines"})
     estimate = EstimateDocument(inquiry_id=inquiry_id, version=version, created_by=user.id, **values)
     db.add(estimate)
     db.flush()
     replace_estimate_lines(estimate, payload.lines, db)
+    if project:
+        db.add(
+            ProjectContractEstimateHistory(
+                project_id=project.id,
+                from_estimate_id=project.contract_estimate_id,
+                to_estimate_id=estimate.id,
+                changed_by=user.id,
+            )
+        )
+        project.contract_estimate_id = estimate.id
     if inquiry.status in (InquiryStatus.NEW, InquiryStatus.CONSULTATION_SCHEDULED, InquiryStatus.SITE_VISIT_COMPLETED):
         inquiry.status = InquiryStatus.ESTIMATE_DRAFTING
     db.commit()
@@ -724,6 +802,27 @@ def delete_estimate_document(inquiry_id: UUID, estimate_id: UUID, _: User = Depe
     estimate = db.scalar(select(EstimateDocument).where(EstimateDocument.id == estimate_id, EstimateDocument.inquiry_id == inquiry_id))
     if not estimate:
         raise HTTPException(status_code=404, detail="견적서를 찾을 수 없습니다.")
+    if db.scalar(
+        select(Project.id).where(Project.contract_estimate_id == estimate_id).limit(1)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="현재 현장에 적용 중인 견적서는 삭제할 수 없습니다.",
+        )
+    if db.scalar(
+        select(ProjectContractEstimateHistory.id)
+        .where(
+            or_(
+                ProjectContractEstimateHistory.from_estimate_id == estimate_id,
+                ProjectContractEstimateHistory.to_estimate_id == estimate_id,
+            )
+        )
+        .limit(1)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="현장 적용 이력이 있는 견적서는 삭제할 수 없습니다.",
+        )
     db.delete(estimate)
     db.commit()
 
@@ -754,6 +853,15 @@ def convert_inquiry_to_project(inquiry_id: UUID, payload: InquiryConvert, user: 
     db.add(project)
     db.flush()
     db.add(ProjectStatusHistory(project_id=project.id, to_status=ProjectStatus.PLANNING, changed_by=user.id, note="견적 상담에서 계약 전환"))
+    if latest:
+        db.add(
+            ProjectContractEstimateHistory(
+                project_id=project.id,
+                from_estimate_id=None,
+                to_estimate_id=latest.id,
+                changed_by=user.id,
+            )
+        )
     inquiry.status = InquiryStatus.CONTRACTED
     inquiry.converted_project_id = project.id
     db.commit()

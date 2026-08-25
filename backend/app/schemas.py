@@ -407,6 +407,19 @@ class InquiryConvert(BaseModel):
     planned_end_date: date | None = None
 
 
+class ContractEstimateApply(BaseModel):
+    estimate_id: UUID
+
+
+class ContractEstimateHistoryOut(BaseModel):
+    id: UUID
+    project_id: UUID
+    from_estimate_id: UUID | None
+    to_estimate_id: UUID
+    changed_by: UUID | None
+    created_at: datetime
+
+
 class InquiryStats(BaseModel):
     total: int
     new_this_month: int

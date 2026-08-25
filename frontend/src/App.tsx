@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ClipboardList,
   Clock3,
+  FilePlus2,
   FolderKanban,
   House,
   ImageIcon,
@@ -1460,6 +1461,7 @@ function DetailPage({
   onEdit,
   onDeleted,
   onOpenEstimate,
+  onCreateEstimateVersion,
 }: {
   id: string;
   initialTab?: "overview" | "photos";
@@ -1467,6 +1469,11 @@ function DetailPage({
   onEdit: (project: Project) => void;
   onDeleted: () => void;
   onOpenEstimate: (inquiryId: string, estimateId: string) => void;
+  onCreateEstimateVersion: (
+    inquiryId: string,
+    estimateId: string,
+    projectId: string,
+  ) => void;
 }) {
   const [project, setProject] = useState<Project | null>(null);
   const [costs, setCosts] = useState<{
@@ -1992,35 +1999,6 @@ function DetailPage({
       {tab === "simulation" && <SimulationWorkspace projectId={id} />}
       {tab === "costs" && (
         <section className="space-y-6">
-          {costs?.estimate && (
-            <div className="panel flex flex-col gap-4 border-l-4 border-l-[#5f8c6c] p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e8f1e9] text-[#3f7050]">
-                  <ClipboardList size={20} />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-[#65806d]">
-                    연결된 계약 견적서
-                  </p>
-                  <p className="mt-1 truncate text-base font-bold text-[#213d2d]">
-                    {costs.estimate.version}차 · {costs.estimate.title}
-                  </p>
-                  <p className="mt-1 text-sm text-[#718078]">
-                    총 견적금액 {money(costs.estimate.total_amount)}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="btn-secondary shrink-0"
-                onClick={() =>
-                  onOpenEstimate(costs.estimate!.inquiry_id, costs.estimate!.id)
-                }
-              >
-                견적서 보기 <ArrowUpRight size={16} />
-              </button>
-            </div>
-          )}
           <div className="grid gap-3 sm:grid-cols-3">
             {[
               [
@@ -2061,11 +2039,45 @@ function DetailPage({
           <div className="grid gap-x-6 gap-y-4 xl:grid-cols-2">
             <div className="panel overflow-hidden">
               <div>
-                <div className="border-b border-[#e4ebe5] bg-[#f8faf8] p-5">
-                  <h3 className="font-semibold text-[#294534]">공사비 항목</h3>
-                  <p className="mt-1 text-xs text-[#8a968e]">
-                    계약 견적서의 항목과 금액을 그대로 표시합니다.
-                  </p>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e4ebe5] bg-[#f8faf8] p-5">
+                  <div>
+                    <h3 className="font-semibold text-[#294534]">
+                      공사비 항목
+                    </h3>
+                    <p className="mt-1 text-xs text-[#8a968e]">
+                      계약 견적서의 항목과 금액을 그대로 표시합니다.
+                    </p>
+                  </div>
+                  {costs?.estimate && (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn-secondary shrink-0"
+                        onClick={() =>
+                          onOpenEstimate(
+                            costs.estimate!.inquiry_id,
+                            costs.estimate!.id,
+                          )
+                        }
+                      >
+                        {costs.estimate.version}차 견적서 보기
+                        <ArrowUpRight size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-primary shrink-0"
+                        onClick={() =>
+                          onCreateEstimateVersion(
+                            costs.estimate!.inquiry_id,
+                            costs.estimate!.id,
+                            id,
+                          )
+                        }
+                      >
+                        <FilePlus2 size={16} /> 새 버전 작성
+                      </button>
+                    </div>
+                  )}
                 </div>
                 {costs?.items.length ? (
                   <div className="space-y-2 bg-[#fbfcfb] p-3">
@@ -2413,6 +2425,8 @@ type AdminRoute = {
   projectTab?: "photos";
   inquiryId?: string;
   estimateId?: string;
+  startNewVersion?: boolean;
+  applyProjectId?: string;
 };
 
 function adminRoute(pathname: string, search = ""): AdminRoute {
@@ -2437,6 +2451,8 @@ function adminRoute(pathname: string, search = ""): AdminRoute {
       projectId: null,
       inquiryId: params.get("inquiry") || undefined,
       estimateId: params.get("estimate") || undefined,
+      startNewVersion: params.get("action") === "new-version",
+      applyProjectId: params.get("applyProject") || undefined,
     };
   }
   if (/^\/admin\/photos\/?$/.test(pathname))
@@ -2480,6 +2496,12 @@ function AdminApp() {
   const [selectedEstimateId, setSelectedEstimateId] = useState<
     string | undefined
   >(initialRoute.estimateId);
+  const [startNewEstimateVersion, setStartNewEstimateVersion] = useState(
+    Boolean(initialRoute.startNewVersion),
+  );
+  const [estimateApplyProjectId, setEstimateApplyProjectId] = useState<
+    string | undefined
+  >(initialRoute.applyProjectId);
   const [formProject, setFormProject] = useState<Project | undefined>();
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -2489,6 +2511,8 @@ function AdminApp() {
     setSelectedProjectTab(undefined);
     setSelectedInquiryId(undefined);
     setSelectedEstimateId(undefined);
+    setStartNewEstimateVersion(false);
+    setEstimateApplyProjectId(undefined);
     setFormProject(undefined);
     history.pushState({}, "", adminPath(nextPage, projectId));
   };
@@ -2499,18 +2523,27 @@ function AdminApp() {
     setFormProject(undefined);
     history.pushState({}, "", `${adminPath("detail", projectId)}?tab=photos`);
   };
-  const openEstimate = (inquiryId: string, estimateId: string) => {
+  const openEstimate = (
+    inquiryId: string,
+    estimateId: string,
+    options?: { newVersion?: boolean; applyProjectId?: string },
+  ) => {
     setPage("estimates");
     setSelectedId(null);
     setSelectedProjectTab(undefined);
     setSelectedInquiryId(inquiryId);
     setSelectedEstimateId(estimateId);
+    setStartNewEstimateVersion(Boolean(options?.newVersion));
+    setEstimateApplyProjectId(options?.applyProjectId);
     setFormProject(undefined);
-    history.pushState(
-      {},
-      "",
-      `/admin/estimates?inquiry=${encodeURIComponent(inquiryId)}&estimate=${encodeURIComponent(estimateId)}`,
-    );
+    const params = new URLSearchParams({
+      inquiry: inquiryId,
+      estimate: estimateId,
+    });
+    if (options?.newVersion) params.set("action", "new-version");
+    if (options?.applyProjectId)
+      params.set("applyProject", options.applyProjectId);
+    history.pushState({}, "", `/admin/estimates?${params.toString()}`);
   };
   useEffect(() => {
     const handleAuthExpired = () => {
@@ -2520,6 +2553,8 @@ function AdminApp() {
       setSelectedProjectTab(undefined);
       setSelectedInquiryId(undefined);
       setSelectedEstimateId(undefined);
+      setStartNewEstimateVersion(false);
+      setEstimateApplyProjectId(undefined);
       setFormProject(undefined);
       history.replaceState({}, "", "/admin");
     };
@@ -2538,6 +2573,8 @@ function AdminApp() {
       setSelectedProjectTab(route.projectTab);
       setSelectedInquiryId(route.inquiryId);
       setSelectedEstimateId(route.estimateId);
+      setStartNewEstimateVersion(Boolean(route.startNewVersion));
+      setEstimateApplyProjectId(route.applyProjectId);
       setFormProject(undefined);
     };
     window.addEventListener("popstate", onPopState);
@@ -2561,6 +2598,8 @@ function AdminApp() {
             setSelectedProjectTab(undefined);
             setSelectedInquiryId(undefined);
             setSelectedEstimateId(undefined);
+            setStartNewEstimateVersion(false);
+            setEstimateApplyProjectId(undefined);
             history.replaceState({}, "", "/admin");
           }
         }}
@@ -2593,6 +2632,12 @@ function AdminApp() {
         onEdit={(p) => setFormProject(p)}
         onDeleted={() => navigateAdmin("projects")}
         onOpenEstimate={openEstimate}
+        onCreateEstimateVersion={(inquiryId, estimateId, projectId) =>
+          openEstimate(inquiryId, estimateId, {
+            newVersion: true,
+            applyProjectId: projectId,
+          })
+        }
       />
     );
   } else if (page === "projects") {
@@ -2610,6 +2655,8 @@ function AdminApp() {
         onOpenProject={(id) => navigateAdmin("detail", id)}
         initialInquiryId={selectedInquiryId}
         initialEstimateId={selectedEstimateId}
+        startNewVersion={startNewEstimateVersion}
+        applyProjectId={estimateApplyProjectId}
       />
     );
   } else if (page === "photos") {
@@ -2684,7 +2731,8 @@ function App() {
   const isPublicProject = new RegExp(
     `^/projects/${ADMIN_PROJECT_UUID}/?$`,
   ).test(pathname);
-  if (pathname === "/" || /^\/projects\/?$/.test(pathname) || isPublicProject)
+  if (pathname === "/") return <Redirect to="/admin" />;
+  if (/^\/projects\/?$/.test(pathname) || isPublicProject)
     return <PublicPortfolio />;
   if (/^\/projects(?:\/|$)/.test(pathname)) return <Redirect to="/projects" />;
   if (/^\/portfolio(?:\/|$)/.test(pathname)) {

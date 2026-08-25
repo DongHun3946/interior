@@ -263,6 +263,49 @@ class SimulationFlowTest(unittest.TestCase):
                     "total_amount": estimate.json()["total_amount"],
                 },
             )
+            next_estimate = client.post(
+                f"/api/v1/estimate-inquiries/{inquiry_id}/estimates"
+                f"?apply_project_id={project_id}",
+                json={
+                    "title": "변경 계약 견적서",
+                    "notes": "공사 중 변경 사항 반영",
+                    "lines": [
+                        {
+                            "category": "OTHER",
+                            "name": "변경 공사 전체",
+                            "quantity": 1,
+                            "unit": "식",
+                            "unit_price": 17_500_000,
+                        }
+                    ],
+                },
+                headers=headers,
+            )
+            self.assertEqual(next_estimate.status_code, 201, next_estimate.text)
+            self.assertEqual(next_estimate.json()["version"], 2)
+            remapped_costs = client.get(
+                f"/api/v1/projects/{project_id}/costs", headers=headers
+            )
+            self.assertEqual(
+                remapped_costs.json()["estimate"]["id"],
+                next_estimate.json()["id"],
+            )
+            self.assertEqual(
+                [item["id"] for item in remapped_costs.json()["items"]],
+                [item["id"] for item in next_estimate.json()["lines"]],
+            )
+            history = client.get(
+                f"/api/v1/projects/{project_id}/contract-estimate-history",
+                headers=headers,
+            )
+            self.assertEqual(history.status_code, 200, history.text)
+            self.assertEqual(len(history.json()), 2)
+            self.assertEqual(history.json()[0]["to_estimate_id"], next_estimate.json()["id"])
+            protected_estimate = client.delete(
+                f"/api/v1/estimate-inquiries/{inquiry_id}/estimates/{estimate.json()['id']}",
+                headers=headers,
+            )
+            self.assertEqual(protected_estimate.status_code, 409)
             ensure_schema_compatibility(engine)
             self.assertNotIn("cost_items", inspect(engine).get_table_names())
             payment_summary = client.get(

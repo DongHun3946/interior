@@ -551,14 +551,19 @@ function EstimateEditor({
   inquiry,
   estimate,
   newVersion,
+  applyProjectId,
   onCancel,
   onSaved,
 }: {
   inquiry: EstimateInquiry;
   estimate?: EstimateDocument;
   newVersion?: boolean;
+  applyProjectId?: string;
   onCancel: () => void;
-  onSaved: () => void;
+  onSaved: (
+    estimate: EstimateDocument,
+    applyToProject: boolean,
+  ) => Promise<void> | void;
 }) {
   const [title, setTitle] = useState(estimate?.title || "인테리어 공사 견적서");
   const [notes, setNotes] = useState(estimate?.notes || "");
@@ -579,6 +584,7 @@ function EstimateEditor({
       : [blankLine(0)],
   );
   const [saving, setSaving] = useState(false);
+  const [applyConfirmOpen, setApplyConfirmOpen] = useState(false);
   const [error, setError] = useState("");
   const totals = useMemo(() => {
     const supply = lines.reduce(
@@ -593,8 +599,7 @@ function EstimateEditor({
     setLines((current) =>
       current.map((line, i) => (i === index ? { ...line, ...patch } : line)),
     );
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
+  const save = async (applyToProject = false) => {
     if (lines.some((line) => !line.name.trim())) {
       const message = "품명이 비어 있는 견적 항목이 있습니다.";
       setError(message);
@@ -634,10 +639,15 @@ function EstimateEditor({
       ),
     };
     try {
-      if (estimate && !newVersion)
-        await api.updateEstimate(inquiry.id, estimate.id, body);
-      else await api.createEstimate(inquiry.id, body);
-      onSaved();
+      const saved =
+        estimate && !newVersion
+          ? await api.updateEstimate(inquiry.id, estimate.id, body)
+          : await api.createEstimate(
+              inquiry.id,
+              body,
+              applyToProject ? applyProjectId : undefined,
+            );
+      await onSaved(saved, applyToProject);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "견적서를 저장하지 못했습니다.",
@@ -655,7 +665,10 @@ function EstimateEditor({
         <ArrowLeft size={16} /> {inquiry.customer_name} 고객 상담으로
       </button>
       <form
-        onSubmit={submit}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save(false);
+        }}
         className="panel mx-auto max-w-6xl overflow-hidden"
       >
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8ece8] px-4 py-5 sm:px-6">
@@ -822,8 +835,31 @@ function EstimateEditor({
                 ? "저장하고 발송 처리"
                 : "견적서 저장"}
           </button>
+          {newVersion && applyProjectId && (
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={saving}
+              onClick={() => setApplyConfirmOpen(true)}
+            >
+              저장 후 현장에 적용
+            </button>
+          )}
         </div>
       </form>
+      {applyConfirmOpen && estimate && (
+        <ConfirmModal
+          title={`${estimate.version + 1}차 견적서를 현장에 적용할까요?`}
+          description={`기존 ${won(estimate.total_amount)} → 변경 ${won(totals.total)} · 증감 ${won(totals.total - estimate.total_amount)}`}
+          confirmLabel={saving ? "저장 및 적용 중…" : "저장 후 현장 적용"}
+          busy={saving}
+          onClose={() => setApplyConfirmOpen(false)}
+          onConfirm={async () => {
+            await save(true);
+            setApplyConfirmOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -978,6 +1014,8 @@ function PrintEstimate({
 function InquiryDetail({
   inquiry,
   initialEstimateId,
+  startNewVersion,
+  applyProjectId,
   onBack,
   onEdit,
   onReload,
@@ -986,6 +1024,8 @@ function InquiryDetail({
 }: {
   inquiry: EstimateInquiry;
   initialEstimateId?: string;
+  startNewVersion?: boolean;
+  applyProjectId?: string;
   onBack: () => void;
   onEdit: () => void;
   onReload: () => Promise<void>;
@@ -1002,7 +1042,17 @@ function InquiryDetail({
   const [editor, setEditor] = useState<{
     estimate?: EstimateDocument;
     newVersion?: boolean;
-  } | null>(null);
+    applyProjectId?: string;
+  } | null>(() => {
+    if (!startNewVersion) return null;
+    return {
+      estimate:
+        estimates.find((estimate) => estimate.id === initialEstimateId) ||
+        estimates[0],
+      newVersion: true,
+      applyProjectId,
+    };
+  });
   const [printing, setPrinting] = useState<EstimateDocument | null>(null);
   const [companySettings, setCompanySettings] =
     useState<CompanySettings | null>(null);
@@ -1019,6 +1069,10 @@ function InquiryDetail({
   const [statusError, setStatusError] = useState("");
   const [deleteInquiryOpen, setDeleteInquiryOpen] = useState(false);
   const [deleteInquiryError, setDeleteInquiryError] = useState("");
+  const [mappedEstimateId, setMappedEstimateId] = useState<string>();
+  const [estimateToApply, setEstimateToApply] =
+    useState<EstimateDocument | null>(null);
+  const [applyingEstimate, setApplyingEstimate] = useState(false);
   useEffect(
     () =>
       setSelectedEstimate(
@@ -1042,6 +1096,26 @@ function InquiryDetail({
     };
   }, []);
   useEffect(() => {
+    let active = true;
+    if (!inquiry.converted_project_id) {
+      setMappedEstimateId(undefined);
+      return () => {
+        active = false;
+      };
+    }
+    api
+      .project(inquiry.converted_project_id)
+      .then((project) => {
+        if (active) setMappedEstimateId(project.contract_estimate_id);
+      })
+      .catch(() => {
+        if (active) setMappedEstimateId(undefined);
+      });
+    return () => {
+      active = false;
+    };
+  }, [inquiry.converted_project_id]);
+  useEffect(() => {
     if (!printing || !companySettings) return;
     const timer = window.setTimeout(() => {
       const originalTitle = document.title;
@@ -1062,16 +1136,39 @@ function InquiryDetail({
     }, 120);
     return () => window.clearTimeout(timer);
   }, [printing, companySettings, inquiry.customer_name]);
+  const mappedEstimate = estimates.find(
+    (estimate) => estimate.id === mappedEstimateId,
+  );
   if (editor)
     return (
       <EstimateEditor
         inquiry={inquiry}
         estimate={editor.estimate}
         newVersion={editor.newVersion}
-        onCancel={() => setEditor(null)}
-        onSaved={async () => {
+        applyProjectId={editor.applyProjectId}
+        onCancel={() => {
+          setEditor(null);
+          history.replaceState(
+            {},
+            "",
+            `/admin/estimates?inquiry=${encodeURIComponent(inquiry.id)}&estimate=${encodeURIComponent(editor.estimate?.id || initialEstimateId || "")}`,
+          );
+        }}
+        onSaved={async (saved, applyToProject) => {
           setEditor(null);
           await onReload();
+          setSelectedEstimate(saved);
+          if (applyToProject) setMappedEstimateId(saved.id);
+          setMessage(
+            applyToProject
+              ? `${saved.version}차 견적서를 저장하고 현장에 적용했습니다.`
+              : `${saved.version}차 견적서를 저장했습니다.`,
+          );
+          history.replaceState(
+            {},
+            "",
+            `/admin/estimates?inquiry=${encodeURIComponent(inquiry.id)}&estimate=${encodeURIComponent(saved.id)}`,
+          );
         }}
       />
     );
@@ -1312,6 +1409,22 @@ function InquiryDetail({
                   </h3>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {inquiry.converted_project_id &&
+                    (mappedEstimateId === selectedEstimate.id ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+                        <CheckCircle2 size={15} /> 현장 적용 중
+                      </span>
+                    ) : (
+                      <button
+                        className="btn-primary"
+                        onClick={() => {
+                          setProjectActionError("");
+                          setEstimateToApply(selectedEstimate);
+                        }}
+                      >
+                        <CheckCircle2 size={15} /> 현장에 적용
+                      </button>
+                    ))}
                   <button
                     className="btn-secondary"
                     onClick={() => setPrinting(selectedEstimate)}
@@ -1328,7 +1441,9 @@ function InquiryDetail({
                     className="btn-secondary"
                     onClick={() =>
                       setEditor({
+                        estimate: selectedEstimate,
                         newVersion: true,
+                        applyProjectId: inquiry.converted_project_id,
                       })
                     }
                   >
@@ -1582,6 +1697,47 @@ function InquiryDetail({
           </form>
         </Modal>
       )}
+      {estimateToApply && inquiry.converted_project_id && (
+        <ConfirmModal
+          title={`${estimateToApply.version}차 견적서를 현장에 적용할까요?`}
+          description={`현재 ${won(mappedEstimate?.total_amount || 0)} → 변경 ${won(estimateToApply.total_amount)} · 증감 ${won(estimateToApply.total_amount - (mappedEstimate?.total_amount || 0))}`}
+          confirmLabel={applyingEstimate ? "적용 중..." : "현장에 적용"}
+          busy={applyingEstimate}
+          onClose={() => {
+            setEstimateToApply(null);
+            setProjectActionError("");
+          }}
+          onConfirm={async () => {
+            setApplyingEstimate(true);
+            setProjectActionError("");
+            try {
+              await api.applyContractEstimate(
+                inquiry.converted_project_id!,
+                estimateToApply.id,
+              );
+              setMappedEstimateId(estimateToApply.id);
+              setMessage(
+                `${estimateToApply.version}차 견적서를 현장에 적용했습니다.`,
+              );
+              setEstimateToApply(null);
+            } catch (error) {
+              setProjectActionError(
+                error instanceof Error
+                  ? error.message
+                  : "견적서를 현장에 적용하지 못했습니다.",
+              );
+            } finally {
+              setApplyingEstimate(false);
+            }
+          }}
+        >
+          {projectActionError && (
+            <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {projectActionError}
+            </p>
+          )}
+        </ConfirmModal>
+      )}
       {lossReasonForm !== null && (
         <ConfirmModal
           title="미계약으로 처리할까요?"
@@ -1650,10 +1806,14 @@ export default function EstimateInquiriesPage({
   onOpenProject,
   initialInquiryId,
   initialEstimateId,
+  startNewVersion,
+  applyProjectId,
 }: {
   onOpenProject: (id: string) => void;
   initialInquiryId?: string;
   initialEstimateId?: string;
+  startNewVersion?: boolean;
+  applyProjectId?: string;
 }) {
   const [items, setItems] = useState<EstimateInquiry[]>([]);
   const [stats, setStats] = useState<InquiryStats | null>(null);
@@ -1729,8 +1889,11 @@ export default function EstimateInquiriesPage({
   if (selected)
     return (
       <InquiryDetail
+        key={`${selected.id}:${startNewVersion ? "new-version" : "detail"}:${initialEstimateId || "latest"}`}
         inquiry={selected}
         initialEstimateId={initialEstimateId}
+        startNewVersion={startNewVersion}
+        applyProjectId={applyProjectId}
         onBack={() => {
           setSelected(null);
           if (initialInquiryId)

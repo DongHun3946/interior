@@ -222,9 +222,9 @@ export const api = {
     }),
   deleteInquiry: (id: string) =>
     request<void>(`/api/v1/estimate-inquiries/${id}`, { method: "DELETE" }),
-  createEstimate: (inquiryId: string, body: unknown) =>
+  createEstimate: (inquiryId: string, body: unknown, applyProjectId?: string) =>
     request<EstimateDocument>(
-      `/api/v1/estimate-inquiries/${inquiryId}/estimates`,
+      `/api/v1/estimate-inquiries/${inquiryId}/estimates${applyProjectId ? `?apply_project_id=${encodeURIComponent(applyProjectId)}` : ""}`,
       { method: "POST", body: JSON.stringify(body) },
     ),
   updateEstimate: (inquiryId: string, estimateId: string, body: unknown) =>
@@ -237,6 +237,11 @@ export const api = {
       `/api/v1/estimate-inquiries/${inquiryId}/estimates/${estimateId}`,
       { method: "DELETE" },
     ),
+  applyContractEstimate: (projectId: string, estimateId: string) =>
+    request<Project>(`/api/v1/projects/${projectId}/contract-estimate`, {
+      method: "PATCH",
+      body: JSON.stringify({ estimate_id: estimateId }),
+    }),
   convertInquiry: (id: string, body: unknown = {}) =>
     request<Project>(`/api/v1/estimate-inquiries/${id}/convert`, {
       method: "POST",

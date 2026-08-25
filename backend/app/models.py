@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import JSON, BigInteger, Boolean, Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, Uuid, func
@@ -191,6 +191,7 @@ class Project(Base):
     images: Mapped[list["ProjectImage"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     payments: Mapped[list["Payment"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     status_histories: Mapped[list["ProjectStatusHistory"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    contract_estimate_histories: Mapped[list["ProjectContractEstimateHistory"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     simulations: Mapped[list["Simulation"]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
 
@@ -247,6 +248,25 @@ class ProjectStatusHistory(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     project: Mapped[Project] = relationship(back_populates="status_histories")
+
+
+class ProjectContractEstimateHistory(Base):
+    __tablename__ = "project_contract_estimate_histories"
+    id: Mapped[uuid.UUID] = uuid_column()
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), index=True)
+    from_estimate_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("estimate_documents.id", ondelete="SET NULL"), nullable=True
+    )
+    to_estimate_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("estimate_documents.id", ondelete="RESTRICT"), index=True
+    )
+    changed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    project: Mapped[Project] = relationship(back_populates="contract_estimate_histories")
 
 
 class EstimateInquiry(Base):

@@ -27,6 +27,7 @@ import AddressMapPicker from "./AddressMapPicker";
 import Modal from "./Modal";
 import ConfirmModal from "./ConfirmModal";
 import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
+import Pagination from "./Pagination";
 import { reportAppError } from "./errors";
 import type {
   CompanySettings,
@@ -112,6 +113,11 @@ const dateTimeText = (value: string) => {
 };
 const toLocalDateTime = (value?: string) =>
   value ? new Date(value).toISOString().slice(0, 16) : "";
+const currentLocalDateTime = () => {
+  const now = new Date();
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+};
 const formatPhoneNumber = (value: string) => {
   const digits = value.replace(/[^0-9]/g, "").slice(0, 11);
   if (digits.startsWith("02")) {
@@ -252,6 +258,7 @@ type InquiryFormState = {
   desired_budget: string;
   desired_start_date: string;
   consultation_date: string;
+  consultation_reserved_at: string;
   request_details: string;
   memo: string;
   loss_reason: string;
@@ -270,7 +277,12 @@ function inquiryFormValue(inquiry?: EstimateInquiry): InquiryFormState {
       ? String(inquiry.desired_budget)
       : "",
     desired_start_date: inquiry?.desired_start_date || "",
-    consultation_date: toLocalDateTime(inquiry?.consultation_date),
+    consultation_date: inquiry
+      ? toLocalDateTime(inquiry.consultation_date)
+      : currentLocalDateTime(),
+    consultation_reserved_at: toLocalDateTime(
+      inquiry?.consultation_reserved_at,
+    ),
     request_details: inquiry?.request_details || "",
     memo: inquiry?.memo || "",
     loss_reason: inquiry?.loss_reason || "",
@@ -302,6 +314,7 @@ function InquiryForm({
       desired_budget: form.desired_budget ? Number(form.desired_budget) : null,
       desired_start_date: form.desired_start_date || null,
       consultation_date: form.consultation_date || null,
+      consultation_reserved_at: form.consultation_reserved_at || null,
       loss_reason: form.status === "LOST" ? form.loss_reason || null : null,
     };
     try {
@@ -328,10 +341,7 @@ function InquiryForm({
         className="panel mx-auto max-w-5xl overflow-hidden"
       >
         <div className="border-b border-[#e8ece8] px-4 py-5 sm:px-6">
-          <p className="text-xs font-bold uppercase tracking-[.15em] text-[#7d9183]">
-            Customer inquiry
-          </p>
-          <h2 className="mt-1 text-2xl font-bold text-[#1d382b]">
+          <h2 className="text-2xl font-bold text-[#1d382b]">
             {inquiry ? "상담 정보 수정" : "새 견적 문의 등록"}
           </h2>
         </div>
@@ -451,6 +461,23 @@ function InquiryForm({
               onChange={(e) => set("consultation_date", e.target.value)}
             />
           </div>
+          {form.status === "CONSULTATION_SCHEDULED" && (
+            <div>
+              <label className="label">
+                상담 예약일<span className="required-mark">*</span>
+              </label>
+              <input
+                className="field"
+                type="datetime-local"
+                required
+                onClick={showDatePicker}
+                value={form.consultation_reserved_at}
+                onChange={(e) =>
+                  set("consultation_reserved_at", e.target.value)
+                }
+              />
+            </div>
+          )}
           <div className="md:col-span-2">
             <label className="label">공사 요청사항</label>
             <textarea
@@ -842,7 +869,9 @@ function PrintEstimate({
             </tr>
             <tr>
               <th className="text-center">대표자</th>
-              <td colSpan={2}>{companyValue(companySettings.representative_name)}</td>
+              <td colSpan={2}>
+                {companyValue(companySettings.representative_name)}
+              </td>
             </tr>
             <tr>
               <th className="text-center">전화번호</th>
@@ -870,47 +899,53 @@ function PrintEstimate({
       </section>
       <h2 className="estimate-print-table-title">{estimate.title}</h2>
       <div className="estimate-print-table-frame">
-        <span className="estimate-print-table-edge estimate-print-table-edge-top" aria-hidden="true" />
+        <span
+          className="estimate-print-table-edge estimate-print-table-edge-top"
+          aria-hidden="true"
+        />
         <table className="estimate-print-lines">
-        <colgroup>
-          <col className="estimate-col-name" />
-          <col className="estimate-col-spec" />
-          <col className="estimate-col-unit" />
-          <col className="estimate-col-quantity" />
-          <col className="estimate-col-price" />
-          <col className="estimate-col-amount" />
-          <col className="estimate-col-memo" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>품명</th>
-            <th>규격</th>
-            <th>단위</th>
-            <th>수량</th>
-            <th>단가</th>
-            <th>금액</th>
-            <th>비고</th>
-          </tr>
-        </thead>
-        <tbody>
-          {estimate.lines.map((line) => (
-            <tr key={line.id}>
-              <td className="estimate-line-name">{line.name}</td>
-              <td>{line.specification || ""}</td>
-              <td className="estimate-cell-center">{line.unit}</td>
-              <td className="estimate-cell-center estimate-number">
-                {Number(line.quantity) > 0 ? line.quantity : ""}
-              </td>
-              <td className="estimate-cell-number">{won(line.unit_price)}</td>
-              <td className="estimate-cell-number estimate-line-amount">
-                {won(line.supply_amount || line.quantity * line.unit_price)}
-              </td>
-              <td>{line.memo || ""}</td>
+          <colgroup>
+            <col className="estimate-col-name" />
+            <col className="estimate-col-spec" />
+            <col className="estimate-col-unit" />
+            <col className="estimate-col-quantity" />
+            <col className="estimate-col-price" />
+            <col className="estimate-col-amount" />
+            <col className="estimate-col-memo" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>품명</th>
+              <th>규격</th>
+              <th>단위</th>
+              <th>수량</th>
+              <th>단가</th>
+              <th>금액</th>
+              <th>비고</th>
             </tr>
-          ))}
-        </tbody>
+          </thead>
+          <tbody>
+            {estimate.lines.map((line) => (
+              <tr key={line.id}>
+                <td className="estimate-line-name">{line.name}</td>
+                <td>{line.specification || ""}</td>
+                <td className="estimate-cell-center">{line.unit}</td>
+                <td className="estimate-cell-center estimate-number">
+                  {Number(line.quantity) > 0 ? line.quantity : ""}
+                </td>
+                <td className="estimate-cell-number">{won(line.unit_price)}</td>
+                <td className="estimate-cell-number estimate-line-amount">
+                  {won(line.supply_amount || line.quantity * line.unit_price)}
+                </td>
+                <td>{line.memo || ""}</td>
+              </tr>
+            ))}
+          </tbody>
         </table>
-        <span className="estimate-print-table-edge estimate-print-table-edge-bottom" aria-hidden="true" />
+        <span
+          className="estimate-print-table-edge estimate-print-table-edge-bottom"
+          aria-hidden="true"
+        />
       </div>
       <div className="ml-auto mt-6 w-80 space-y-2 text-sm">
         <div className="flex justify-between">
@@ -942,6 +977,7 @@ function PrintEstimate({
 
 function InquiryDetail({
   inquiry,
+  initialEstimateId,
   onBack,
   onEdit,
   onReload,
@@ -949,6 +985,7 @@ function InquiryDetail({
   onOpenProject,
 }: {
   inquiry: EstimateInquiry;
+  initialEstimateId?: string;
   onBack: () => void;
   onEdit: () => void;
   onReload: () => Promise<void>;
@@ -958,7 +995,10 @@ function InquiryDetail({
   const estimates = inquiry.estimates || [];
   const [selectedEstimate, setSelectedEstimate] = useState<
     EstimateDocument | undefined
-  >(estimates[0]);
+  >(
+    estimates.find((estimate) => estimate.id === initialEstimateId) ||
+      estimates[0],
+  );
   const [editor, setEditor] = useState<{
     estimate?: EstimateDocument;
     newVersion?: boolean;
@@ -979,7 +1019,14 @@ function InquiryDetail({
   const [statusError, setStatusError] = useState("");
   const [deleteInquiryOpen, setDeleteInquiryOpen] = useState(false);
   const [deleteInquiryError, setDeleteInquiryError] = useState("");
-  useEffect(() => setSelectedEstimate(estimates[0]), [inquiry]);
+  useEffect(
+    () =>
+      setSelectedEstimate(
+        estimates.find((estimate) => estimate.id === initialEstimateId) ||
+          estimates[0],
+      ),
+    [inquiry, initialEstimateId],
+  );
   useEffect(() => {
     let active = true;
     api
@@ -1001,7 +1048,10 @@ function InquiryDetail({
       const printedAt = new Date();
       const pad = (part: number) => String(part).padStart(2, "0");
       const printedDate = `${printedAt.getFullYear()}-${pad(printedAt.getMonth() + 1)}-${pad(printedAt.getDate())}`;
-      const safeCustomerName = inquiry.customer_name.replace(/[\\/:*?"<>|]/g, "_");
+      const safeCustomerName = inquiry.customer_name.replace(
+        /[\\/:*?"<>|]/g,
+        "_",
+      );
       document.title = `견적서_${safeCustomerName}_고객_${printedDate}`;
       try {
         window.print();
@@ -1290,12 +1340,24 @@ function InquiryDetail({
                 <table className="w-full min-w-[850px] text-left text-sm">
                   <thead>
                     <tr className="border-y border-[#e7ece7] bg-[#f7f9f7] text-xs text-[#75827a]">
-                      <th className="border-r border-[#dfe6e0] px-3 py-3">품명</th>
-                      <th className="border-r border-[#dfe6e0] px-3 py-3">규격</th>
-                      <th className="border-r border-[#dfe6e0] px-3 py-3">단위</th>
-                      <th className="border-r border-[#dfe6e0] px-3 py-3">수량</th>
-                      <th className="border-r border-[#dfe6e0] px-3 py-3">단가</th>
-                      <th className="border-r border-[#dfe6e0] px-3 py-3">금액</th>
+                      <th className="border-r border-[#dfe6e0] px-3 py-3">
+                        품명
+                      </th>
+                      <th className="border-r border-[#dfe6e0] px-3 py-3">
+                        규격
+                      </th>
+                      <th className="border-r border-[#dfe6e0] px-3 py-3">
+                        단위
+                      </th>
+                      <th className="border-r border-[#dfe6e0] px-3 py-3">
+                        수량
+                      </th>
+                      <th className="border-r border-[#dfe6e0] px-3 py-3">
+                        단가
+                      </th>
+                      <th className="border-r border-[#dfe6e0] px-3 py-3">
+                        금액
+                      </th>
                       <th className="px-3 py-3">비고</th>
                     </tr>
                   </thead>
@@ -1305,11 +1367,15 @@ function InquiryDetail({
                         key={line.id || line.sort_order}
                         className="border-b border-[#edf0ed]"
                       >
-                        <td className="border-r border-[#e4e9e5] px-3 py-3 font-semibold">{line.name}</td>
+                        <td className="border-r border-[#e4e9e5] px-3 py-3 font-semibold">
+                          {line.name}
+                        </td>
                         <td className="border-r border-[#e4e9e5] px-3 py-3 text-[#728078]">
                           {line.specification || ""}
                         </td>
-                        <td className="border-r border-[#e4e9e5] px-3 py-3">{line.unit}</td>
+                        <td className="border-r border-[#e4e9e5] px-3 py-3">
+                          {line.unit}
+                        </td>
                         <td className="border-r border-[#e4e9e5] px-3 py-3 text-right">
                           {Number(line.quantity) > 0 ? line.quantity : ""}
                         </td>
@@ -1566,7 +1632,8 @@ function InquiryDetail({
           )}
         </ConfirmModal>
       )}
-      {printing && companySettings && (
+      {printing &&
+        companySettings &&
         createPortal(
           <PrintEstimate
             inquiry={inquiry}
@@ -1574,22 +1641,27 @@ function InquiryDetail({
             companySettings={companySettings}
           />,
           document.body,
-        )
-      )}
+        )}
     </>
   );
 }
 
 export default function EstimateInquiriesPage({
   onOpenProject,
+  initialInquiryId,
+  initialEstimateId,
 }: {
   onOpenProject: (id: string) => void;
+  initialInquiryId?: string;
+  initialEstimateId?: string;
 }) {
   const [items, setItems] = useState<EstimateInquiry[]>([]);
   const [stats, setStats] = useState<InquiryStats | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<InquiryStatus | "">("");
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<EstimateInquiry | null>(null);
   const [formMode, setFormMode] = useState<"new" | "edit" | null>(null);
@@ -1597,7 +1669,10 @@ export default function EstimateInquiriesPage({
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ page_size: "100" });
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: "6",
+      });
       if (query) params.set("q", query);
       if (status) params.set("status", status);
       const [list, summary] = await Promise.all([
@@ -1605,8 +1680,11 @@ export default function EstimateInquiriesPage({
         api.inquiryStats(),
       ]);
       setItems(list.items);
+      setTotal(list.total);
       setStats(summary);
     } catch (e) {
+      setItems([]);
+      setTotal(0);
       setError(
         e instanceof Error ? e.message : "견적 문의를 불러오지 못했습니다.",
       );
@@ -1617,7 +1695,7 @@ export default function EstimateInquiriesPage({
   useEffect(() => {
     const timer = window.setTimeout(loadList, 180);
     return () => window.clearTimeout(timer);
-  }, [query, status]);
+  }, [page, query, status]);
   const open = async (id: string) => {
     setLoading(true);
     try {
@@ -1630,6 +1708,9 @@ export default function EstimateInquiriesPage({
       setLoading(false);
     }
   };
+  useEffect(() => {
+    if (initialInquiryId) void open(initialInquiryId);
+  }, [initialInquiryId]);
   const reloadSelected = async () => {
     if (selected) setSelected(await api.inquiry(selected.id));
   };
@@ -1649,8 +1730,11 @@ export default function EstimateInquiriesPage({
     return (
       <InquiryDetail
         inquiry={selected}
+        initialEstimateId={initialEstimateId}
         onBack={() => {
           setSelected(null);
+          if (initialInquiryId)
+            history.replaceState({}, "", "/admin/estimates");
           loadList();
         }}
         onEdit={() => setFormMode("edit")}
@@ -1719,7 +1803,10 @@ export default function EstimateInquiriesPage({
             <input
               className="field pl-9"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(1);
+              }}
               placeholder="고객명, 연락처, 주소 검색"
             />
           </div>
@@ -1727,7 +1814,10 @@ export default function EstimateInquiriesPage({
             className="w-full sm:w-48"
             value={status}
             options={inquiryStatusFilterOptions}
-            onChange={(value) => setStatus(value as InquiryStatus | "")}
+            onChange={(value) => {
+              setStatus(value as InquiryStatus | "");
+              setPage(1);
+            }}
             ariaLabel="견적 상담 상태 필터"
           />
         </div>
@@ -1741,49 +1831,82 @@ export default function EstimateInquiriesPage({
             견적 문의를 불러오는 중입니다…
           </p>
         ) : items.length ? (
-          <div className="divide-y divide-[#edf0ed]">
-            {items.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => open(item.id)}
-                className="grid w-full gap-3 p-5 text-left transition hover:bg-[#fafbf9] md:grid-cols-[1.1fr_1fr_160px_24px] md:items-center"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <b className="text-base text-[#264233]">
-                      {item.customer_name}
-                    </b>
-                    <StatusPill status={item.status} />
+          <div>
+            <div className="divide-y divide-[#edf0ed]">
+              {items.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => open(item.id)}
+                  className="grid w-full gap-3 p-5 text-left transition hover:bg-[#fafbf9] md:grid-cols-[1.05fr_1fr_360px_150px_24px] md:items-center"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <b className="text-base text-[#264233]">
+                        {item.customer_name}
+                      </b>
+                      <StatusPill status={item.status} />
+                    </div>
+                    <p className="mt-1 text-xs text-[#87938b]">
+                      {item.customer_phone}
+                    </p>
                   </div>
-                  <p className="mt-1 text-xs text-[#87938b]">
-                    {item.customer_phone}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-[#344b3d]">
-                    {[item.address, item.address_detail]
-                      .filter(Boolean)
-                      .join(", ") || "주소 미등록"}
-                  </p>
-                  <p className="mt-1 text-xs text-[#8b978f]">
-                    {pyeong(item.area_pyeong)} ·{" "}
-                    {item.housing_type || "유형 미정"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-[#8b978f]">견적</p>
-                  <p className="mt-1 text-sm font-bold">
-                    {item.latest_estimate
-                      ? won(item.latest_estimate.total_amount)
-                      : "미작성"}
-                  </p>
-                </div>
-                <ChevronRight
-                  size={17}
-                  className="hidden text-[#93a098] md:block"
-                />
-              </button>
-            ))}
+                  <div>
+                    <p className="text-sm text-[#344b3d]">
+                      {[item.address, item.address_detail]
+                        .filter(Boolean)
+                        .join(", ") || "주소 미등록"}
+                    </p>
+                    <p className="mt-1 text-xs text-[#8b978f]">
+                      {pyeong(item.area_pyeong)} ·{" "}
+                      {item.housing_type || "유형 미정"}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-5">
+                    <div>
+                      <p className="text-xs text-[#8b978f]">상담 일정</p>
+                      <p className="mt-1 text-sm font-semibold text-[#344b3d]">
+                        {item.consultation_date
+                          ? dateTimeText(item.consultation_date)
+                          : "미정"}
+                      </p>
+                    </div>
+                    <div>
+                      {item.status === "CONSULTATION_SCHEDULED" && (
+                        <>
+                          <p className="text-xs text-[#8b978f]">상담 예약일</p>
+                          <p className="mt-1 text-sm font-semibold text-violet-700">
+                            {item.consultation_reserved_at
+                              ? dateTimeText(item.consultation_reserved_at)
+                              : "미정"}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#8b978f]">견적</p>
+                    <p className="mt-1 text-sm font-bold">
+                      {item.latest_estimate
+                        ? won(item.latest_estimate.total_amount)
+                        : "미작성"}
+                    </p>
+                  </div>
+                  <ChevronRight
+                    size={17}
+                    className="hidden text-[#93a098] md:block"
+                  />
+                </button>
+              ))}
+            </div>
+            <div className="border-t border-[#edf0ed] px-3">
+              <Pagination
+                page={page}
+                pageSize={6}
+                total={total}
+                loading={loading}
+                onPageChange={setPage}
+              />
+            </div>
           </div>
         ) : (
           <div className="flex min-h-64 flex-col items-center justify-center p-8 text-center">

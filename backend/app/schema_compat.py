@@ -234,6 +234,38 @@ def _migrate_project_content_fields(engine: Engine) -> None:
         )
 
 
+def _migrate_consultation_reserved_at(engine: Engine) -> None:
+    inspector = inspect(engine)
+    if "estimate_inquiries" not in inspector.get_table_names():
+        return
+    columns = {
+        column["name"] for column in inspector.get_columns("estimate_inquiries")
+    }
+    if "consultation_reserved_at" in columns:
+        return
+    column_type = (
+        "TIMESTAMP WITH TIME ZONE"
+        if engine.dialect.name == "postgresql"
+        else "DATETIME"
+    )
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "ALTER TABLE estimate_inquiries "
+                f"ADD COLUMN consultation_reserved_at {column_type}"
+            )
+        )
+
+
+def _drop_legacy_cost_items(engine: Engine) -> None:
+    inspector = inspect(engine)
+    if "cost_items" not in inspector.get_table_names():
+        return
+    quote = engine.dialect.identifier_preparer.quote
+    with engine.begin() as connection:
+        connection.execute(text(f"DROP TABLE {quote('cost_items')}"))
+
+
 def ensure_schema_compatibility(engine: Engine) -> None:
     """Apply the small in-place schema migrations used by the local application."""
     _migrate_user_login_id(engine)
@@ -241,13 +273,16 @@ def ensure_schema_compatibility(engine: Engine) -> None:
     _migrate_company_session_timeout(engine)
     _migrate_project_contract_estimate(engine)
     _migrate_project_content_fields(engine)
+    _migrate_consultation_reserved_at(engine)
     _drop_removed_columns(engine)
+    _drop_legacy_cost_items(engine)
     if engine.dialect.name == "postgresql":
         with engine.begin() as connection:
             connection.execute(
                 text("ALTER TYPE paymentstage ADD VALUE IF NOT EXISTS 'LUMP_SUM'")
             )
             connection.execute(text("DROP TYPE IF EXISTS paymentstatus"))
+            connection.execute(text("DROP TYPE IF EXISTS costitemtype"))
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
     with engine.begin() as connection:
@@ -261,24 +296,6 @@ def ensure_schema_compatibility(engine: Engine) -> None:
             connection.execute(
                 text("UPDATE estimate_lines SET unit = '' WHERE unit = '-'")
             )
-        if "cost_items" in tables:
-            cost_columns = {column["name"] for column in inspector.get_columns("cost_items")}
-            if "supply_amount" not in cost_columns:
-                connection.execute(text("ALTER TABLE cost_items ADD COLUMN supply_amount BIGINT NOT NULL DEFAULT 0"))
-                connection.execute(text("UPDATE cost_items SET supply_amount = amount"))
-            if "vat_amount" not in cost_columns:
-                connection.execute(text("ALTER TABLE cost_items ADD COLUMN vat_amount BIGINT NOT NULL DEFAULT 0"))
-            if "estimate_inquiries" in tables:
-                connection.execute(
-                    text(
-                        "UPDATE cost_items SET item_type = :contract "
-                        "WHERE item_type = :estimate AND EXISTS ("
-                        "SELECT 1 FROM estimate_inquiries "
-                        "WHERE estimate_inquiries.converted_project_id = cost_items.project_id"
-                        ")"
-                    ),
-                    {"contract": "CONTRACT", "estimate": "ESTIMATE"},
-                )
         if "project_images" in tables:
             image_columns = {
                 column["name"]

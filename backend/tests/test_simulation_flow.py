@@ -248,32 +248,27 @@ class SimulationFlowTest(unittest.TestCase):
             self.assertTrue(
                 all(item["item_type"] == "CONTRACT" for item in converted_costs.json()["items"])
             )
+            self.assertEqual(
+                [item["id"] for item in converted_costs.json()["items"]],
+                [item["id"] for item in estimate.json()["lines"]],
+            )
             self.assertEqual(converted_costs.json()["summary"]["final_total"], 19_250_000)
-
-            legacy_cost = client.post(
-                f"/api/v1/projects/{project_id}/costs",
-                json={
-                    "category": "FLOORING",
-                    "item_type": "ESTIMATE",
-                    "name": "장판",
-                    "supply_amount": 2_000_000,
-                    "vat_amount": 200_000,
+            self.assertEqual(
+                converted_costs.json()["estimate"],
+                {
+                    "id": estimate.json()["id"],
+                    "inquiry_id": inquiry_id,
+                    "version": estimate.json()["version"],
+                    "title": estimate.json()["title"],
+                    "total_amount": estimate.json()["total_amount"],
                 },
-                headers=headers,
             )
-            self.assertEqual(legacy_cost.status_code, 201, legacy_cost.text)
             ensure_schema_compatibility(engine)
-            migrated_costs = client.get(
-                f"/api/v1/projects/{project_id}/costs", headers=headers
-            )
-            self.assertTrue(
-                all(item["item_type"] == "CONTRACT" for item in migrated_costs.json()["items"])
-            )
-            self.assertEqual(migrated_costs.json()["summary"]["final_total"], 21_450_000)
+            self.assertNotIn("cost_items", inspect(engine).get_table_names())
             payment_summary = client.get(
                 f"/api/v1/projects/{project_id}/payments", headers=headers
             )
-            self.assertEqual(payment_summary.json()["summary"]["receivable_total"], 21_450_000)
+            self.assertEqual(payment_summary.json()["summary"]["receivable_total"], 19_250_000)
 
             payment = client.post(
                 f"/api/v1/projects/{project_id}/payments",
@@ -293,7 +288,7 @@ class SimulationFlowTest(unittest.TestCase):
                 f"/api/v1/projects/{project_id}/payments", headers=headers
             )
             self.assertEqual(payment_summary.json()["summary"]["paid_total"], 5_000_000)
-            self.assertEqual(payment_summary.json()["summary"]["receivable_total"], 16_450_000)
+            self.assertEqual(payment_summary.json()["summary"]["receivable_total"], 14_250_000)
 
             active_inquiry = client.get(
                 f"/api/v1/estimate-inquiries/{inquiry_id}", headers=headers

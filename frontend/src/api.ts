@@ -1,6 +1,7 @@
 import type {
   AdminImageList,
   Cost,
+  ContractEstimateReference,
   CompanySettings,
   Dashboard,
   EstimateDocument,
@@ -68,9 +69,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
         ? payload.detail
         : "요청을 처리하지 못했습니다.";
     const error = new ApiError(
-      typeof detail === "string"
-        ? detail
-        : "요청을 처리하지 못했습니다.",
+      typeof detail === "string" ? detail : "요청을 처리하지 못했습니다.",
       {
         status: response.status,
         detail,
@@ -110,8 +109,7 @@ export const api = {
     }),
   me: () => request<User>("/api/v1/auth/me"),
   dashboard: () => request<Dashboard>("/api/v1/dashboard/summary"),
-  companySettings: () =>
-    request<CompanySettings>("/api/v1/company-settings"),
+  companySettings: () => request<CompanySettings>("/api/v1/company-settings"),
   updateCompanySettings: (body: CompanySettings) =>
     request<CompanySettings>("/api/v1/company-settings", {
       method: "PUT",
@@ -147,18 +145,11 @@ export const api = {
       body: JSON.stringify({ status, note }),
     }),
   costs: (id: string) =>
-    request<{ items: Cost[]; summary: CostSummary }>(
-      `/api/v1/projects/${id}/costs`,
-    ),
-  createCost: (id: string, body: unknown) =>
-    request<Cost>(`/api/v1/projects/${id}/costs`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-  deleteCost: (projectId: string, costId: string) =>
-    request<void>(`/api/v1/projects/${projectId}/costs/${costId}`, {
-      method: "DELETE",
-    }),
+    request<{
+      items: Cost[];
+      estimate: ContractEstimateReference | null;
+      summary: CostSummary;
+    }>(`/api/v1/projects/${id}/costs`),
   payments: (id: string) =>
     request<{ items: Payment[]; summary: PaymentSummary }>(
       `/api/v1/projects/${id}/payments`,
@@ -208,8 +199,7 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  images: (params = "") =>
-    request<AdminImageList>(`/api/v1/images${params}`),
+  images: (params = "") => request<AdminImageList>(`/api/v1/images${params}`),
   inquiryStats: () => request<InquiryStats>("/api/v1/estimate-inquiries/stats"),
   inquiries: (params = "") =>
     request<{

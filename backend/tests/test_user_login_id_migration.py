@@ -8,6 +8,27 @@ from backend.app.schema_compat import ensure_schema_compatibility
 
 
 class UserLoginIdMigrationTest(unittest.TestCase):
+    def test_legacy_cost_items_table_is_dropped(self):
+        with tempfile.TemporaryDirectory(prefix="interior-cost-migration-") as temp_dir:
+            database_path = Path(temp_dir, "legacy.db").as_posix()
+            engine = create_engine(f"sqlite:///{database_path}")
+            try:
+                with engine.begin() as connection:
+                    connection.execute(
+                        text(
+                            "CREATE TABLE cost_items ("
+                            "id VARCHAR(36) PRIMARY KEY, "
+                            "name VARCHAR(200) NOT NULL"
+                            ")"
+                        )
+                    )
+
+                ensure_schema_compatibility(engine)
+
+                self.assertNotIn("cost_items", inspect(engine).get_table_names())
+            finally:
+                engine.dispose()
+
     def test_email_column_is_migrated_to_login_id(self):
         with tempfile.TemporaryDirectory(prefix="interior-user-migration-") as temp_dir:
             database_path = Path(temp_dir, "legacy.db").as_posix()

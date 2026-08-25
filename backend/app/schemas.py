@@ -1,10 +1,11 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import CostCategory, CostItemType, ImageCategory, InquiryStatus, PaymentMethod, PaymentStage, ProjectStatus, UserRole
+from .models import CostCategory, ImageCategory, InquiryStatus, PaymentMethod, PaymentStage, ProjectStatus, UserRole
 
 
 class UserOut(BaseModel):
@@ -122,31 +123,20 @@ class AdminImageList(BaseModel):
     classifications: list[str] = Field(default_factory=list)
 
 
-class CostCreate(BaseModel):
-    category: CostCategory = CostCategory.OTHER
-    item_type: CostItemType = CostItemType.ESTIMATE
-    name: str = Field(min_length=1, max_length=200)
-    supply_amount: int = Field(ge=0, le=9_000_000_000_000)
-    vat_amount: int = Field(default=0, ge=0, le=9_000_000_000_000)
-    memo: str | None = None
-    occurred_on: date | None = None
-
-
-class CostUpdate(BaseModel):
-    category: CostCategory | None = None
-    item_type: CostItemType | None = None
-    name: str | None = None
-    supply_amount: int | None = Field(default=None, ge=0, le=9_000_000_000_000)
-    vat_amount: int | None = Field(default=None, ge=0, le=9_000_000_000_000)
-    memo: str | None = None
-    occurred_on: date | None = None
-
-
-class CostOut(CostCreate):
-    model_config = ConfigDict(from_attributes=True)
+class ContractEstimateLineOut(BaseModel):
     id: UUID
     project_id: UUID
+    category: CostCategory
+    item_type: Literal["CONTRACT"] = "CONTRACT"
+    name: str
+    specification: str | None = None
+    quantity: Decimal
+    unit: str
+    unit_price: int
+    supply_amount: int
+    vat_amount: int
     amount: int
+    memo: str | None = None
     created_at: datetime
 
 
@@ -226,13 +216,18 @@ class ProjectList(Page):
 
 
 class CostSummary(BaseModel):
-    estimate: int
     contract: int
-    extra: int
-    discount: int
     final_total: int
     supply_total: int
     vat_total: int
+
+
+class ContractEstimateReference(BaseModel):
+    id: UUID
+    inquiry_id: UUID
+    version: int
+    title: str
+    total_amount: int
 
 
 class PaymentSummary(BaseModel):
@@ -355,6 +350,7 @@ class InquiryBase(BaseModel):
     desired_budget: int | None = Field(default=None, ge=0)
     desired_start_date: date | None = None
     consultation_date: datetime | None = None
+    consultation_reserved_at: datetime | None = None
     request_details: str | None = None
     memo: str | None = None
     loss_reason: str | None = None
@@ -375,6 +371,7 @@ class InquiryUpdate(BaseModel):
     desired_budget: int | None = Field(default=None, ge=0)
     desired_start_date: date | None = None
     consultation_date: datetime | None = None
+    consultation_reserved_at: datetime | None = None
     request_details: str | None = None
     memo: str | None = None
     loss_reason: str | None = None

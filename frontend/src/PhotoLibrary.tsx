@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Camera,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   EyeOff,
   ImageIcon,
@@ -16,6 +14,7 @@ import { api, mediaUrl } from "./api";
 import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
 import PhotoClassificationEditor from "./PhotoClassificationEditor";
 import PhotoViewerModal from "./PhotoViewerModal";
+import Pagination from "./Pagination";
 import type { AdminImage, AdminImageList, ProjectListItem } from "./types";
 
 const classificationPresets = [
@@ -34,6 +33,7 @@ const classificationPresets = [
 
 type PhotoView = "projects" | "all";
 type VisibilityFilter = "" | "public" | "private";
+const photoPageSize = (view: PhotoView) => (view === "projects" ? 2 : 8);
 
 function PhotoCard({
   image,
@@ -46,7 +46,10 @@ function PhotoCard({
   image: AdminImage;
   classificationOptions: string[];
   saving: boolean;
-  onUpdate: (image: AdminImage, values: Record<string, unknown>) => Promise<void>;
+  onUpdate: (
+    image: AdminImage,
+    values: Record<string, unknown>,
+  ) => Promise<void>;
   onPreview: (image: AdminImage) => void;
   onOpenProject: (projectId: string) => void;
 }) {
@@ -89,7 +92,9 @@ function PhotoCard({
               : "border border-white/25 bg-[rgba(35,48,40,0.88)] text-white shadow-[0_2px_8px_rgba(16,38,25,.30)] hover:bg-[#1f2d25]"
           }`}
           onClick={() => onUpdate(image, { is_public: !image.is_public })}
-          aria-label={image.is_public ? "사진 비공개로 변경" : "사진 공개로 변경"}
+          aria-label={
+            image.is_public ? "사진 비공개로 변경" : "사진 공개로 변경"
+          }
         >
           {image.is_public ? <Eye size={12} /> : <EyeOff size={12} />}
           {image.is_public ? "공개" : "비공개"}
@@ -139,7 +144,7 @@ export default function PhotoLibrary({
 }) {
   const [data, setData] = useState<AdminImageList | null>(null);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
-  const [view, setView] = useState<PhotoView>("projects");
+  const [view, setView] = useState<PhotoView>("all");
   const [projectId, setProjectId] = useState("");
   const [classification, setClassification] = useState("");
   const [visibility, setVisibility] = useState<VisibilityFilter>("");
@@ -162,7 +167,7 @@ export default function PhotoLibrary({
   const load = useCallback(() => {
     const params = new URLSearchParams({
       page: String(page),
-      page_size: "48",
+      page_size: String(photoPageSize(view)),
     });
     if (projectId) params.set("project_id", projectId);
     if (classification) params.set("classification", classification);
@@ -182,7 +187,15 @@ export default function PhotoLibrary({
         ),
       )
       .finally(() => setLoading(false));
-  }, [classification, page, projectId, refreshKey, searchQuery, visibility]);
+  }, [
+    classification,
+    page,
+    projectId,
+    refreshKey,
+    searchQuery,
+    view,
+    visibility,
+  ]);
 
   useEffect(load, [load]);
 
@@ -224,10 +237,6 @@ export default function PhotoLibrary({
     { value: "public", label: "공개 사진" },
     { value: "private", label: "비공개 사진" },
   ];
-  const totalPages = Math.max(
-    1,
-    Math.ceil((data?.total || 0) / (data?.page_size || 48)),
-  );
   const changeFilter = (setter: (value: string) => void, value: string) => {
     setter(value);
     setPage(1);
@@ -289,8 +298,8 @@ export default function PhotoLibrary({
           </div>
           <div className="flex rounded-xl border border-[#d6e1d8] bg-white p-1 shadow-sm">
             {[
-              ["projects", "현장별 보기"],
               ["all", "전체 사진"],
+              ["projects", "현장별 보기"],
             ].map(([value, label]) => (
               <button
                 key={value}
@@ -300,7 +309,10 @@ export default function PhotoLibrary({
                     ? "bg-[#294c35] text-white shadow-sm"
                     : "text-[#718078] hover:bg-[#f2f6f2]"
                 }`}
-                onClick={() => setView(value as PhotoView)}
+                onClick={() => {
+                  setView(value as PhotoView);
+                  setPage(1);
+                }}
               >
                 {label}
               </button>
@@ -352,7 +364,10 @@ export default function PhotoLibrary({
                 aria-label="사진 검색"
               />
             </div>
-            <button type="submit" className="btn-primary sm:col-span-2 xl:col-span-1">
+            <button
+              type="submit"
+              className="btn-primary sm:col-span-2 xl:col-span-1"
+            >
               <Search size={15} /> 검색
             </button>
           </form>
@@ -370,7 +385,9 @@ export default function PhotoLibrary({
           총 <span className="text-[#2d6641]">{data?.total || 0}</span>장의 사진
         </p>
         {loading && (
-          <span className="text-xs font-medium text-[#87958c]">불러오는 중…</span>
+          <span className="text-xs font-medium text-[#87958c]">
+            불러오는 중…
+          </span>
         )}
       </div>
 
@@ -379,13 +396,15 @@ export default function PhotoLibrary({
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#edf3ed] text-[#76917d]">
             <ImageIcon size={21} />
           </span>
-          <h3 className="mt-4 font-bold text-[#344d3d]">조건에 맞는 사진이 없습니다</h3>
+          <h3 className="mt-4 font-bold text-[#344d3d]">
+            조건에 맞는 사진이 없습니다
+          </h3>
           <p className="mt-1.5 text-sm text-[#89958d]">
             다른 현장이나 분류를 선택해 보세요.
           </p>
         </section>
       ) : view === "projects" ? (
-        <div className="space-y-5">
+        <div className="grid gap-4 xl:grid-cols-2">
           {groupedPhotos.map(([groupProjectId, group]) => (
             <section key={groupProjectId} className="panel p-4 sm:p-5">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -411,7 +430,7 @@ export default function PhotoLibrary({
                   현장 사진 열기 <ArrowRight size={14} />
                 </button>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {group.images.map(photoCard)}
               </div>
             </section>
@@ -423,31 +442,13 @@ export default function PhotoLibrary({
         </div>
       )}
 
-      {totalPages > 1 && (
-        <nav className="flex items-center justify-center gap-3 pt-2" aria-label="사진 페이지 이동">
-          <button
-            type="button"
-            className="btn-secondary h-10 w-10 p-0"
-            disabled={page <= 1 || loading}
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
-            aria-label="이전 페이지"
-          >
-            <ChevronLeft size={17} />
-          </button>
-          <span className="min-w-20 text-center text-xs font-bold text-[#607067]">
-            {page} / {totalPages}
-          </span>
-          <button
-            type="button"
-            className="btn-secondary h-10 w-10 p-0"
-            disabled={page >= totalPages || loading}
-            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-            aria-label="다음 페이지"
-          >
-            <ChevronRight size={17} />
-          </button>
-        </nav>
-      )}
+      <Pagination
+        page={page}
+        pageSize={data?.page_size || photoPageSize(view)}
+        total={data?.total || 0}
+        loading={loading}
+        onPageChange={setPage}
+      />
     </div>
   );
 }

@@ -5,7 +5,6 @@ export type ProjectStatus =
   | "ON_HOLD"
   | "CANCELLED";
 export type ImageCategory = "BEFORE" | "PROGRESS" | "AFTER" | "ETC";
-export type CostItemType = "ESTIMATE" | "CONTRACT" | "EXTRA" | "DISCOUNT";
 export type CostCategory =
   | "DEMOLITION"
   | "CARPENTRY"
@@ -85,23 +84,30 @@ export interface Cost {
   id: string;
   project_id: string;
   category: CostCategory;
-  item_type: CostItemType;
+  item_type: "CONTRACT";
   name: string;
+  specification?: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
   supply_amount: number;
   vat_amount: number;
   amount: number;
   memo?: string;
-  occurred_on?: string;
   created_at: string;
 }
 export interface CostSummary {
-  estimate: number;
   contract: number;
-  extra: number;
-  discount: number;
   final_total: number;
   supply_total: number;
   vat_total: number;
+}
+export interface ContractEstimateReference {
+  id: string;
+  inquiry_id: string;
+  version: number;
+  title: string;
+  total_amount: number;
 }
 export type PaymentStage =
   | "DEPOSIT"
@@ -247,6 +253,7 @@ export interface EstimateInquiry {
   desired_budget?: number;
   desired_start_date?: string;
   consultation_date?: string;
+  consultation_reserved_at?: string;
   request_details?: string;
   memo?: string;
   loss_reason?: string;

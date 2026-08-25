@@ -37,6 +37,7 @@ import {
 import { AUTH_EXPIRED_EVENT, api, mediaUrl } from "./api";
 import type {
   Cost,
+  ContractEstimateReference,
   Dashboard,
   Image,
   ImageCategory,
@@ -63,6 +64,7 @@ import PhotoClassificationEditor from "./PhotoClassificationEditor";
 import PhotoLibrary from "./PhotoLibrary";
 import ConfirmModal from "./ConfirmModal";
 import Modal from "./Modal";
+import Pagination from "./Pagination";
 
 const statusLabels: Record<ProjectStatus, string> = {
   PLANNING: "예정",
@@ -72,16 +74,11 @@ const statusLabels: Record<ProjectStatus, string> = {
   CANCELLED: "취소",
 };
 const statusStyles: Record<ProjectStatus, string> = {
-  PLANNING:
-    "bg-[#fff0d8] text-[#94611f] ring-1 ring-inset ring-[#efd4a8]",
-  IN_PROGRESS:
-    "bg-[#e8f1ff] text-[#326aa8] ring-1 ring-inset ring-[#c9dcf6]",
-  COMPLETED:
-    "bg-[#e6f4ea] text-[#2f7d4c] ring-1 ring-inset ring-[#c6e4cf]",
-  ON_HOLD:
-    "bg-[#f1ebff] text-[#7451a6] ring-1 ring-inset ring-[#ddd0f5]",
-  CANCELLED:
-    "bg-[#fdecec] text-[#a65358] ring-1 ring-inset ring-[#f1cbcd]",
+  PLANNING: "bg-[#fff0d8] text-[#94611f] ring-1 ring-inset ring-[#efd4a8]",
+  IN_PROGRESS: "bg-[#e8f1ff] text-[#326aa8] ring-1 ring-inset ring-[#c9dcf6]",
+  COMPLETED: "bg-[#e6f4ea] text-[#2f7d4c] ring-1 ring-inset ring-[#c6e4cf]",
+  ON_HOLD: "bg-[#f1ebff] text-[#7451a6] ring-1 ring-inset ring-[#ddd0f5]",
+  CANCELLED: "bg-[#fdecec] text-[#a65358] ring-1 ring-inset ring-[#f1cbcd]",
 };
 const statusDots: Record<ProjectStatus, string> = {
   PLANNING: "bg-[#d5a044]",
@@ -322,8 +319,8 @@ function Login({ onLogin }: { onLogin: () => void }) {
   const [loginId, setLoginId] = useState(
     () => localStorage.getItem("interior_login_id") || "",
   );
-  const [rememberLoginId, setRememberLoginId] = useState(
-    () => Boolean(localStorage.getItem("interior_login_id")),
+  const [rememberLoginId, setRememberLoginId] = useState(() =>
+    Boolean(localStorage.getItem("interior_login_id")),
   );
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -775,8 +772,8 @@ function DashboardPage({
               발급이 필요하신가요?
             </h3>
             <p className="mt-3 max-w-md text-sm leading-6 text-[#64806b]">
-              국세청 홈택스에서 전자세금계산서를 발급하거나 발급 내역을
-              조회할 수 있습니다.
+              국세청 홈택스에서 전자세금계산서를 발급하거나 발급 내역을 조회할
+              수 있습니다.
             </p>
           </div>
           <div className="mt-auto pt-6">
@@ -864,7 +861,11 @@ function ProjectCard({
       {archived ? (
         <div>{content}</div>
       ) : (
-        <button type="button" className="block w-full text-left" onClick={onOpen}>
+        <button
+          type="button"
+          className="block w-full text-left"
+          onClick={onOpen}
+        >
           {content}
         </button>
       )}
@@ -904,23 +905,34 @@ function ProjectsPage({
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [showArchived, setShowArchived] = useState(false);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const load = () => {
     setLoading(true);
     setError("");
-    const params = new URLSearchParams({ page_size: "50" });
+    const params = new URLSearchParams({
+      page: String(page),
+      page_size: "6",
+    });
     if (query) params.set("q", query);
     if (status) params.set("status", status);
     if (showArchived) params.set("archived", "true");
     api
       .projects(`?${params}`)
-      .then((r) => setItems(r.items))
+      .then((r) => {
+        setItems(r.items);
+        setTotal(r.total);
+      })
       .catch((caught) => {
         setItems([]);
+        setTotal(0);
         setError(
-          caught instanceof Error ? caught.message : "현장 목록을 불러오지 못했습니다.",
+          caught instanceof Error
+            ? caught.message
+            : "현장 목록을 불러오지 못했습니다.",
         );
       })
       .finally(() => setLoading(false));
@@ -928,7 +940,7 @@ function ProjectsPage({
   useEffect(() => {
     const timer = setTimeout(load, 180);
     return () => clearTimeout(timer);
-  }, [query, status, showArchived]);
+  }, [page, query, status, showArchived]);
   const restoreProject = async (id: string) => {
     setRestoringId(id);
     setError("");
@@ -936,7 +948,11 @@ function ProjectsPage({
       await api.restoreProject(id);
       load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "현장을 복원하지 못했습니다.");
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "현장을 복원하지 못했습니다.",
+      );
     } finally {
       setRestoringId(null);
     }
@@ -946,7 +962,9 @@ function ProjectsPage({
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm text-[#758078]">
-            {showArchived ? "삭제된 프로젝트를 관리합니다" : "모든 프로젝트를 한곳에서"}
+            {showArchived
+              ? "삭제된 프로젝트를 관리합니다"
+              : "모든 프로젝트를 한곳에서"}
           </p>
           <h2 className="serif mt-1 text-3xl text-[#1b3025]">
             {showArchived ? "삭제된 현장" : "전체 현장"}
@@ -958,6 +976,7 @@ function ProjectsPage({
             className="btn-secondary"
             onClick={() => {
               setShowArchived((current) => !current);
+              setPage(1);
               setError("");
             }}
           >
@@ -981,14 +1000,20 @@ function ProjectsPage({
             className="field pl-10"
             placeholder="현장명, 주소, 고객명 검색"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
         <DropdownSelect
           className="sm:w-44"
           value={status}
           options={projectStatusFilterOptions}
-          onChange={setStatus}
+          onChange={(value) => {
+            setStatus(value);
+            setPage(1);
+          }}
           ariaLabel="현장 상태 필터"
         />
       </div>
@@ -1002,32 +1027,45 @@ function ProjectsPage({
           현장 목록을 불러오는 중입니다…
         </div>
       ) : items.length ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {items.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              archived={showArchived}
-              restoring={restoringId === project.id}
-              onOpen={() => onOpen(project.id)}
-              onRestore={() => restoreProject(project.id)}
-            />
-          ))}
+        <div className="space-y-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {items.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                archived={showArchived}
+                restoring={restoringId === project.id}
+                onOpen={() => onOpen(project.id)}
+                onRestore={() => restoreProject(project.id)}
+              />
+            ))}
+          </div>
+          <Pagination
+            page={page}
+            pageSize={6}
+            total={total}
+            loading={loading}
+            onPageChange={setPage}
+          />
         </div>
       ) : (
         <Empty
-          title={showArchived ? "삭제된 현장이 없습니다" : "등록된 현장이 없습니다"}
+          title={
+            showArchived ? "삭제된 현장이 없습니다" : "등록된 현장이 없습니다"
+          }
           message={
             showArchived
               ? "삭제한 현장이 이곳에 표시됩니다."
               : "첫 번째 프로젝트를 등록하고 사진과 공사비를 기록해보세요."
           }
-          action={!showArchived ? (
-            <button className="btn-primary" onClick={onCreate}>
-              <Plus size={16} />
-              현장 등록하기
-            </button>
-          ) : undefined}
+          action={
+            !showArchived ? (
+              <button className="btn-primary" onClick={onCreate}>
+                <Plus size={16} />
+                현장 등록하기
+              </button>
+            ) : undefined
+          }
         />
       )}
     </div>
@@ -1097,57 +1135,57 @@ function MapLocationPicker({
       maxWidthClass="max-w-4xl"
     >
       <div className="relative">
-          <NaverMap
-            className="h-[320px] w-full bg-[#edf2ed] sm:h-[520px]"
-            markers={pickerMarkers}
-            initialCenter={initialCenter}
-            selectable
-            onMapClick={choosePosition}
-          />
-          <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-[#17372b]/90 px-4 py-2 text-xs font-semibold text-white shadow-lg">
-            원하는 위치를 클릭하세요
-          </div>
+        <NaverMap
+          className="h-[320px] w-full bg-[#edf2ed] sm:h-[520px]"
+          markers={pickerMarkers}
+          initialCenter={initialCenter}
+          selectable
+          onMapClick={choosePosition}
+        />
+        <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-[#17372b]/90 px-4 py-2 text-xs font-semibold text-white shadow-lg">
+          원하는 위치를 클릭하세요
         </div>
-        <div className="flex flex-col gap-4 border-t border-[#e5eae5] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div className="min-w-0">
-            {resolving && (
-              <p className="text-sm font-semibold text-[#557060]">
-                선택한 위치의 주소를 확인하는 중…
+      </div>
+      <div className="flex flex-col gap-4 border-t border-[#e5eae5] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="min-w-0">
+          {resolving && (
+            <p className="text-sm font-semibold text-[#557060]">
+              선택한 위치의 주소를 확인하는 중…
+            </p>
+          )}
+          {result && (
+            <>
+              <p className="text-sm font-bold text-[#294534]">
+                {result.road_address}
               </p>
-            )}
-            {result && (
-              <>
-                <p className="text-sm font-bold text-[#294534]">
-                  {result.road_address}
-                </p>
-                {result.jibun_address &&
-                  result.jibun_address !== result.road_address && (
-                    <p className="mt-1 text-xs text-[#849188]">
-                      지번 {result.jibun_address}
-                    </p>
-                  )}
-              </>
-            )}
-            {error && <p className="max-w-xl text-sm text-rose-600">{error}</p>}
-            {!resolving && !result && !error && (
-              <p className="text-sm text-[#849188]">
-                아직 선택한 위치가 없습니다.
-              </p>
-            )}
-          </div>
-          <div className="flex shrink-0 justify-end gap-2">
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              취소
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={!result || resolving}
-              onClick={() => result && onSelect(result)}
-            >
-              <MapPin size={15} /> 이 위치로 등록
-            </button>
-          </div>
+              {result.jibun_address &&
+                result.jibun_address !== result.road_address && (
+                  <p className="mt-1 text-xs text-[#849188]">
+                    지번 {result.jibun_address}
+                  </p>
+                )}
+            </>
+          )}
+          {error && <p className="max-w-xl text-sm text-rose-600">{error}</p>}
+          {!resolving && !result && !error && (
+            <p className="text-sm text-[#849188]">
+              아직 선택한 위치가 없습니다.
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 justify-end gap-2">
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            취소
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={!result || resolving}
+            onClick={() => result && onSelect(result)}
+          >
+            <MapPin size={15} /> 이 위치로 등록
+          </button>
+        </div>
       </div>
     </Modal>
   );
@@ -1421,16 +1459,19 @@ function DetailPage({
   onBack,
   onEdit,
   onDeleted,
+  onOpenEstimate,
 }: {
   id: string;
   initialTab?: "overview" | "photos";
   onBack: () => void;
   onEdit: (project: Project) => void;
   onDeleted: () => void;
+  onOpenEstimate: (inquiryId: string, estimateId: string) => void;
 }) {
   const [project, setProject] = useState<Project | null>(null);
   const [costs, setCosts] = useState<{
     items: Cost[];
+    estimate: ContractEstimateReference | null;
     summary: CostSummary;
   } | null>(null);
   const [payments, setPayments] = useState<{
@@ -1450,11 +1491,6 @@ function DetailPage({
   const [deletingImage, setDeletingImage] = useState(false);
   const [projectDeleteOpen, setProjectDeleteOpen] = useState(false);
   const [deletingProject, setDeletingProject] = useState(false);
-  const [costForm, setCostForm] = useState({
-    name: "",
-    supply_amount: "",
-    vat_amount: "",
-  });
   const [paymentForm, setPaymentForm] = useState({
     stage: "DEPOSIT" as PaymentStage,
     method: "BANK_TRANSFER" as PaymentMethod,
@@ -1512,21 +1548,6 @@ function DetailPage({
       setUploading(false);
       event.target.value = "";
     }
-  };
-  const addCost = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!costForm.name || !costForm.supply_amount) return;
-    await api.createCost(id, {
-      ...costForm,
-      item_type: "CONTRACT",
-      category: "OTHER",
-      supply_amount: Number(costForm.supply_amount),
-      vat_amount: Number(costForm.vat_amount || 0),
-    });
-    setCostForm({ ...costForm, name: "", supply_amount: "", vat_amount: "" });
-    const result = await api.costs(id);
-    setCosts(result);
-    setPayments(await api.payments(id));
   };
   const addPayment = async (event: FormEvent) => {
     event.preventDefault();
@@ -1739,9 +1760,7 @@ function DetailPage({
               </div>
               <div>
                 <p className="label">주거 유형</p>
-                <p className="value-text">
-                  {project.housing_type || "미등록"}
-                </p>
+                <p className="value-text">{project.housing_type || "미등록"}</p>
               </div>
             </div>
             <div className="mt-7 border-t border-[#edf0ec] pt-5">
@@ -1878,81 +1897,81 @@ function DetailPage({
               {filteredPhotos.length ? (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredPhotos.map((image) => (
-                  <div key={image.id} className="panel overflow-hidden">
-                    <div className="group relative aspect-square bg-[#edf2ed]">
-                      <img
-                        src={mediaUrl(image.thumbnail_url)}
-                        className="h-full w-full object-cover"
-                      />
-                      {image.classification && (
-                        <span className="absolute bottom-3 left-3 rounded-lg bg-black/60 px-2 py-1 text-[11px] font-semibold text-white">
-                          {image.classification}
-                        </span>
-                      )}
-                      {image.is_cover && (
-                        <span className="absolute bottom-3 right-3 rounded bg-white/90 px-1.5 py-0.5 text-[9px] font-bold text-[#355d40] shadow-sm">
-                          대표
-                        </span>
-                      )}
-                      <button
-                        className="absolute right-2 top-2 rounded-lg bg-black/45 p-1.5 text-white opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100"
-                        onClick={() => setImageToDelete(image)}
-                        aria-label="사진 삭제"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                      <div className="absolute left-2 top-2 flex gap-1 opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100">
+                    <div key={image.id} className="panel overflow-hidden">
+                      <div className="group relative aspect-square bg-[#edf2ed]">
+                        <img
+                          src={mediaUrl(image.thumbnail_url)}
+                          className="h-full w-full object-cover"
+                        />
+                        {image.classification && (
+                          <span className="absolute bottom-3 left-3 rounded-lg bg-black/60 px-2 py-1 text-[11px] font-semibold text-white">
+                            {image.classification}
+                          </span>
+                        )}
+                        {image.is_cover && (
+                          <span className="absolute bottom-3 right-3 rounded bg-white/90 px-1.5 py-0.5 text-[9px] font-bold text-[#355d40] shadow-sm">
+                            대표
+                          </span>
+                        )}
                         <button
-                          className={`rounded-lg px-2 py-1 text-[10px] font-semibold ${image.is_public ? "bg-[#3d7650] text-white" : "bg-white/90 text-[#355d40]"}`}
-                          onClick={async () => {
-                            await api.updateImage(id, image.id, {
-                              is_public: !image.is_public,
-                            });
-                            load();
-                          }}
+                          className="absolute right-2 top-2 rounded-lg bg-black/45 p-1.5 text-white opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100"
+                          onClick={() => setImageToDelete(image)}
+                          aria-label="사진 삭제"
                         >
-                          {image.is_public ? "공개" : "비공개"}
+                          <Trash2 size={14} />
                         </button>
-                        {!image.is_cover && (
+                        <div className="absolute left-2 top-2 flex gap-1 opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100">
                           <button
-                            className="rounded-lg bg-white/90 px-2 py-1 text-[10px] font-semibold text-[#355d40]"
+                            className={`rounded-lg px-2 py-1 text-[10px] font-semibold ${image.is_public ? "bg-[#3d7650] text-white" : "bg-white/90 text-[#355d40]"}`}
                             onClick={async () => {
                               await api.updateImage(id, image.id, {
-                                is_cover: true,
+                                is_public: !image.is_public,
                               });
                               load();
                             }}
                           >
-                            대표 지정
+                            {image.is_public ? "공개" : "비공개"}
                           </button>
-                        )}
+                          {!image.is_cover && (
+                            <button
+                              className="rounded-lg bg-white/90 px-2 py-1 text-[10px] font-semibold text-[#355d40]"
+                              onClick={async () => {
+                                await api.updateImage(id, image.id, {
+                                  is_cover: true,
+                                });
+                                load();
+                              }}
+                            >
+                              대표 지정
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="border-t border-[#e2e8e3] bg-[#f7faf7] p-3">
-                      <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
-                        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[#607368]">
-                          <ImageIcon size={13} aria-hidden="true" />
-                          사진 분류
-                        </span>
-                        {savingPhotoClassificationId === image.id && (
-                          <span className="text-[10px] font-medium text-[#628b72]">
-                            저장 중…
+                      <div className="border-t border-[#e2e8e3] bg-[#f7faf7] p-3">
+                        <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
+                          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[#607368]">
+                            <ImageIcon size={13} aria-hidden="true" />
+                            사진 분류
                           </span>
-                        )}
+                          {savingPhotoClassificationId === image.id && (
+                            <span className="text-[10px] font-medium text-[#628b72]">
+                              저장 중…
+                            </span>
+                          )}
+                        </div>
+                        <PhotoClassificationEditor
+                          value={image.classification || ""}
+                          options={photoClassificationOptions}
+                          onSave={(classification) =>
+                            void updatePhotoClassification(
+                              image.id,
+                              classification,
+                            )
+                          }
+                          disabled={savingPhotoClassificationId === image.id}
+                        />
                       </div>
-                      <PhotoClassificationEditor
-                        value={image.classification || ""}
-                        options={photoClassificationOptions}
-                        onSave={(classification) =>
-                          void updatePhotoClassification(
-                            image.id,
-                            classification,
-                          )
-                        }
-                        disabled={savingPhotoClassificationId === image.id}
-                      />
                     </div>
-                  </div>
                   ))}
                 </div>
               ) : (
@@ -1973,6 +1992,35 @@ function DetailPage({
       {tab === "simulation" && <SimulationWorkspace projectId={id} />}
       {tab === "costs" && (
         <section className="space-y-6">
+          {costs?.estimate && (
+            <div className="panel flex flex-col gap-4 border-l-4 border-l-[#5f8c6c] p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-4">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e8f1e9] text-[#3f7050]">
+                  <ClipboardList size={20} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-[#65806d]">
+                    연결된 계약 견적서
+                  </p>
+                  <p className="mt-1 truncate text-base font-bold text-[#213d2d]">
+                    {costs.estimate.version}차 · {costs.estimate.title}
+                  </p>
+                  <p className="mt-1 text-sm text-[#718078]">
+                    총 견적금액 {money(costs.estimate.total_amount)}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary shrink-0"
+                onClick={() =>
+                  onOpenEstimate(costs.estimate!.inquiry_id, costs.estimate!.id)
+                }
+              >
+                견적서 보기 <ArrowUpRight size={16} />
+              </button>
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-3">
             {[
               [
@@ -2011,12 +2059,12 @@ function DetailPage({
           </div>
 
           <div className="grid gap-x-6 gap-y-4 xl:grid-cols-2">
-            <div className="grid gap-4 xl:row-span-2 xl:grid-rows-subgrid">
-              <div className="panel overflow-hidden">
+            <div className="panel overflow-hidden">
+              <div>
                 <div className="border-b border-[#e4ebe5] bg-[#f8faf8] p-5">
                   <h3 className="font-semibold text-[#294534]">공사비 항목</h3>
                   <p className="mt-1 text-xs text-[#8a968e]">
-                    계약 + 추가 - 할인으로 최종 공사비가 계산됩니다.
+                    계약 견적서의 항목과 금액을 그대로 표시합니다.
                   </p>
                 </div>
                 {costs?.items.length ? (
@@ -2024,13 +2072,7 @@ function DetailPage({
                     {costs.items.map((cost) => (
                       <div
                         key={cost.id}
-                        className={`flex items-center justify-between gap-4 rounded-xl border border-[#e0e8e2] border-l-4 p-4 transition hover:border-[#cad8ce] hover:shadow-sm ${
-                          cost.item_type === "EXTRA"
-                            ? "border-l-[#ca8a43] bg-[#fffaf1]"
-                            : cost.item_type === "DISCOUNT"
-                              ? "border-l-[#8b72a0] bg-[#faf7fc]"
-                              : "border-l-[#5f8c6c] bg-[#f3f7f4]"
-                        }`}
+                        className="flex items-center justify-between gap-4 rounded-xl border border-[#e0e8e2] border-l-4 border-l-[#5f8c6c] bg-[#f3f7f4] p-4 transition hover:border-[#cad8ce] hover:shadow-sm"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -2038,16 +2080,16 @@ function DetailPage({
                               {cost.name}
                             </p>
                             <span className="rounded-full border border-black/5 bg-white/80 px-2 py-0.5 text-[11px] font-semibold text-[#66736b]">
-                              {
-                                {
-                                  ESTIMATE: "견적",
-                                  CONTRACT: "계약",
-                                  EXTRA: "추가",
-                                  DISCOUNT: "할인",
-                                }[cost.item_type]
-                              }
+                              계약 견적
                             </span>
                           </div>
+                          {(cost.specification || cost.unit) && (
+                            <p className="mt-1 text-xs text-[#7a8780]">
+                              {[cost.specification, cost.unit]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          )}
                           <p className="mt-1.5 text-xs text-[#66736b]">
                             공급가 {money(cost.supply_amount)} · 부가세{" "}
                             {money(cost.vat_amount)}
@@ -2057,16 +2099,6 @@ function DetailPage({
                           <p className="text-base font-bold text-[#18372b]">
                             {money(cost.amount)}
                           </p>
-                          <button
-                            className="mt-2 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[#a15151] transition hover:bg-[#f9e8e6]"
-                            onClick={async () => {
-                              await api.deleteCost(id, cost.id);
-                              setCosts(await api.costs(id));
-                              setPayments(await api.payments(id));
-                            }}
-                          >
-                            <Trash2 size={13} /> 삭제
-                          </button>
                         </div>
                       </div>
                     ))}
@@ -2077,55 +2109,12 @@ function DetailPage({
                   </p>
                 )}
               </div>
-              <form className="panel p-5" onSubmit={addCost}>
-                <h3 className="font-semibold text-[#294534]">공사비 추가</h3>
-                <input
-                  className="field mt-4"
-                  placeholder="항목명"
-                  value={costForm.name}
-                  onChange={(e) =>
-                    setCostForm({ ...costForm, name: e.target.value })
-                  }
-                  required
-                />
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <MoneyInput
-                    className="field"
-                    placeholder="공급가액"
-                    value={costForm.supply_amount}
-                    onValueChange={(value) =>
-                      setCostForm({
-                        ...costForm,
-                        supply_amount: value,
-                        vat_amount: value
-                          ? String(Math.round(Number(value) * 0.1))
-                          : "",
-                      })
-                    }
-                    required
-                  />
-                  <MoneyInput
-                    className="field"
-                    placeholder="부가세 (10%, 수정 가능)"
-                    value={costForm.vat_amount}
-                    onValueChange={(value) =>
-                      setCostForm({ ...costForm, vat_amount: value })
-                    }
-                  />
-                </div>
-                <button className="btn-primary mt-4 w-full">
-                  <Plus size={15} />
-                  공사비 등록
-                </button>
-              </form>
             </div>
 
-            <div className="grid gap-4 xl:row-span-2 xl:grid-rows-subgrid">
-              <div className="panel overflow-hidden">
+            <div className="panel overflow-hidden">
+              <div>
                 <div className="border-b border-[#e1eae7] bg-[#f6faf8] p-5">
-                  <h3 className="font-semibold text-[#294534]">
-                    입금 내역
-                  </h3>
+                  <h3 className="font-semibold text-[#294534]">입금 내역</h3>
                   <p className="mt-1 text-xs text-[#8a968e]">
                     실제 입금이 완료된 내역을 확인할 수 있습니다.
                   </p>
@@ -2190,7 +2179,10 @@ function DetailPage({
                   </p>
                 )}
               </div>
-              <form className="panel p-5" onSubmit={addPayment}>
+              <form
+                className="border-t border-[#e1eae7] bg-[#f8faf8] p-5"
+                onSubmit={addPayment}
+              >
                 <h3 className="font-semibold text-[#294534]">입금 내역 추가</h3>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   <DropdownSelect
@@ -2249,10 +2241,7 @@ function DetailPage({
                       placeholder="입금액"
                       value={
                         useFullReceivable
-                          ? Math.max(
-                              payments?.summary.receivable_total || 0,
-                              0,
-                            )
+                          ? Math.max(payments?.summary.receivable_total || 0, 0)
                           : paymentForm.supply_amount
                       }
                       onValueChange={(value) =>
@@ -2330,13 +2319,26 @@ function DetailPage({
 
 function MapPage({ onOpen }: { onOpen: (id: string) => void }) {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   useEffect(() => {
+    setLoading(true);
+    setError("");
     api
-      .projects("?page_size=100")
-      .then((result) => setProjects(result.items))
-      .catch((e) => setError(e.message));
-  }, []);
+      .projects(`?page=${page}&page_size=6`)
+      .then((result) => {
+        setProjects(result.items);
+        setTotal(result.total);
+      })
+      .catch((e) => {
+        setProjects([]);
+        setTotal(0);
+        setError(e.message);
+      })
+      .finally(() => setLoading(false));
+  }, [page]);
   const mapped = projects.filter(
     (project) => project.latitude != null && project.longitude != null,
   );
@@ -2356,13 +2358,13 @@ function MapPage({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="border-b border-[#edf0ec] p-5">
           <h2 className="font-semibold text-[#294534]">지도에 표시된 현장</h2>
           <p className="mt-1 text-xs text-[#8a968e]">
-            좌표 등록 {mapped.length}곳 · 전체 {projects.length}곳
+            현재 페이지 좌표 등록 {mapped.length}곳 · 전체 {total}곳
           </p>
         </div>
         {error ? (
           <p className="p-5 text-sm text-[#a14e4e]">{error}</p>
         ) : (
-          <div className="max-h-[500px] divide-y divide-[#edf0ec] overflow-auto">
+          <div className="divide-y divide-[#edf0ec]">
             {projects.map((project) => (
               <button
                 key={project.id}
@@ -2383,6 +2385,17 @@ function MapPage({ onOpen }: { onOpen: (id: string) => void }) {
             ))}
           </div>
         )}
+        {!error && (
+          <div className="border-t border-[#edf0ec] px-2">
+            <Pagination
+              page={page}
+              pageSize={6}
+              total={total}
+              loading={loading}
+              onPageChange={setPage}
+            />
+          </div>
+        )}
       </section>
     </div>
   );
@@ -2398,6 +2411,8 @@ type AdminRoute = {
   page: string;
   projectId: string | null;
   projectTab?: "photos";
+  inquiryId?: string;
+  estimateId?: string;
 };
 
 function adminRoute(pathname: string, search = ""): AdminRoute {
@@ -2415,8 +2430,15 @@ function adminRoute(pathname: string, search = ""): AdminRoute {
     return { page: "new-project", projectId: null };
   if (/^\/admin\/projects\/?$/.test(pathname))
     return { page: "projects", projectId: null };
-  if (/^\/admin\/estimates\/?$/.test(pathname))
-    return { page: "estimates", projectId: null };
+  if (/^\/admin\/estimates\/?$/.test(pathname)) {
+    const params = new URLSearchParams(search);
+    return {
+      page: "estimates",
+      projectId: null,
+      inquiryId: params.get("inquiry") || undefined,
+      estimateId: params.get("estimate") || undefined,
+    };
+  }
   if (/^\/admin\/photos\/?$/.test(pathname))
     return { page: "photos", projectId: null };
   if (/^\/admin\/map\/?$/.test(pathname))
@@ -2429,8 +2451,7 @@ function adminRoute(pathname: string, search = ""): AdminRoute {
 function adminPath(page: string, projectId?: string | null) {
   if (page === "projects") return "/admin/projects";
   if (page === "new-project") return "/admin/projects/new";
-  if (page === "detail" && projectId)
-    return `/admin/projects/${projectId}`;
+  if (page === "detail" && projectId) return `/admin/projects/${projectId}`;
   if (page === "estimates") return "/admin/estimates";
   if (page === "photos") return "/admin/photos";
   if (page === "map") return "/admin/map";
@@ -2453,6 +2474,12 @@ function AdminApp() {
   const [selectedProjectTab, setSelectedProjectTab] = useState<
     "photos" | undefined
   >(initialRoute.projectTab);
+  const [selectedInquiryId, setSelectedInquiryId] = useState<
+    string | undefined
+  >(initialRoute.inquiryId);
+  const [selectedEstimateId, setSelectedEstimateId] = useState<
+    string | undefined
+  >(initialRoute.estimateId);
   const [formProject, setFormProject] = useState<Project | undefined>();
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -2460,6 +2487,8 @@ function AdminApp() {
     setPage(nextPage);
     setSelectedId(projectId || null);
     setSelectedProjectTab(undefined);
+    setSelectedInquiryId(undefined);
+    setSelectedEstimateId(undefined);
     setFormProject(undefined);
     history.pushState({}, "", adminPath(nextPage, projectId));
   };
@@ -2470,12 +2499,27 @@ function AdminApp() {
     setFormProject(undefined);
     history.pushState({}, "", `${adminPath("detail", projectId)}?tab=photos`);
   };
+  const openEstimate = (inquiryId: string, estimateId: string) => {
+    setPage("estimates");
+    setSelectedId(null);
+    setSelectedProjectTab(undefined);
+    setSelectedInquiryId(inquiryId);
+    setSelectedEstimateId(estimateId);
+    setFormProject(undefined);
+    history.pushState(
+      {},
+      "",
+      `/admin/estimates?inquiry=${encodeURIComponent(inquiryId)}&estimate=${encodeURIComponent(estimateId)}`,
+    );
+  };
   useEffect(() => {
     const handleAuthExpired = () => {
       setAuthenticated(false);
       setPage("dashboard");
       setSelectedId(null);
       setSelectedProjectTab(undefined);
+      setSelectedInquiryId(undefined);
+      setSelectedEstimateId(undefined);
       setFormProject(undefined);
       history.replaceState({}, "", "/admin");
     };
@@ -2485,10 +2529,15 @@ function AdminApp() {
   }, []);
   useEffect(() => {
     const onPopState = () => {
-      const route = adminRoute(window.location.pathname, window.location.search);
+      const route = adminRoute(
+        window.location.pathname,
+        window.location.search,
+      );
       setPage(route.page);
       setSelectedId(route.projectId);
       setSelectedProjectTab(route.projectTab);
+      setSelectedInquiryId(route.inquiryId);
+      setSelectedEstimateId(route.estimateId);
       setFormProject(undefined);
     };
     window.addEventListener("popstate", onPopState);
@@ -2510,6 +2559,8 @@ function AdminApp() {
             setPage("dashboard");
             setSelectedId(null);
             setSelectedProjectTab(undefined);
+            setSelectedInquiryId(undefined);
+            setSelectedEstimateId(undefined);
             history.replaceState({}, "", "/admin");
           }
         }}
@@ -2541,6 +2592,7 @@ function AdminApp() {
         }
         onEdit={(p) => setFormProject(p)}
         onDeleted={() => navigateAdmin("projects")}
+        onOpenEstimate={openEstimate}
       />
     );
   } else if (page === "projects") {
@@ -2556,6 +2608,8 @@ function AdminApp() {
     content = (
       <EstimateInquiriesPage
         onOpenProject={(id) => navigateAdmin("detail", id)}
+        initialInquiryId={selectedInquiryId}
+        initialEstimateId={selectedEstimateId}
       />
     );
   } else if (page === "photos") {
@@ -2568,11 +2622,7 @@ function AdminApp() {
     );
   } else if (page === "map") {
     title = "현장 지도";
-    content = (
-      <MapPage
-        onOpen={(id) => navigateAdmin("detail", id)}
-      />
-    );
+    content = <MapPage onOpen={(id) => navigateAdmin("detail", id)} />;
   } else if (page === "settings") {
     title = "업체 설정";
     content = <CompanySettingsPage />;
@@ -2636,8 +2686,7 @@ function App() {
   ).test(pathname);
   if (pathname === "/" || /^\/projects\/?$/.test(pathname) || isPublicProject)
     return <PublicPortfolio />;
-  if (/^\/projects(?:\/|$)/.test(pathname))
-    return <Redirect to="/projects" />;
+  if (/^\/projects(?:\/|$)/.test(pathname)) return <Redirect to="/projects" />;
   if (/^\/portfolio(?:\/|$)/.test(pathname)) {
     const legacyId = pathname.match(/^\/portfolio\/([^/]+)\/?$/)?.[1];
     const validId = legacyId?.match(new RegExp(`^${ADMIN_PROJECT_UUID}$`));

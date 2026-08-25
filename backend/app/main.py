@@ -14,8 +14,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from .core.config import get_settings
 from .db import Base, engine, get_db
-from .models import CompanySettings, CostItem, CostItemType, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, Project, ProjectImage, ProjectStatus, ProjectStatusHistory, User, UserRole
-from .schemas import AdminImageList, AdminImageOut, CompanySettingsOut, CompanySettingsUpdate, CostCreate, CostOut, CostSummary, CostUpdate, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
+from .models import CompanySettings, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, Project, ProjectImage, ProjectStatus, ProjectStatusHistory, User, UserRole
+from .schemas import AdminImageList, AdminImageOut, CompanySettingsOut, CompanySettingsUpdate, ContractEstimateLineOut, ContractEstimateReference, CostSummary, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
 from .security import create_access_token, get_current_user, hash_password, verify_password
 from .schema_compat import ensure_schema_compatibility
 from .storage import save_upload
@@ -104,11 +104,22 @@ def replace_estimate_lines(estimate: EstimateDocument, payload_lines: list, db: 
     db.flush()
 
 
+def contract_estimate_for_project(
+    db: Session, project_id: UUID
+) -> EstimateDocument | None:
+    result = db.execute(
+        select(EstimateDocument)
+        .options(joinedload(EstimateDocument.lines))
+        .join(Project, Project.contract_estimate_id == EstimateDocument.id)
+        .where(Project.id == project_id, Project.deleted_at.is_(None))
+    ).unique()
+    return result.scalar_one_or_none()
+
+
 def project_finance_summary(db: Session, project_id: UUID) -> PaymentSummary:
-    costs = db.scalars(select(CostItem).where(CostItem.project_id == project_id, CostItem.deleted_at.is_(None))).all()
-    final_costs = [item for item in costs if item.item_type in (CostItemType.CONTRACT, CostItemType.EXTRA, CostItemType.DISCOUNT)]
-    final_supply = sum((-1 if item.item_type == CostItemType.DISCOUNT else 1) * item.supply_amount for item in final_costs)
-    final_vat = sum((-1 if item.item_type == CostItemType.DISCOUNT else 1) * item.vat_amount for item in final_costs)
+    estimate = contract_estimate_for_project(db, project_id)
+    final_supply = estimate.supply_amount if estimate else 0
+    final_vat = estimate.vat_amount if estimate else 0
     payments = db.scalars(select(Payment).where(Payment.project_id == project_id, Payment.deleted_at.is_(None))).all()
     paid_supply = sum(item.supply_amount for item in payments)
     paid_vat = sum(item.vat_amount for item in payments)
@@ -237,8 +248,12 @@ def reverse_geocode(
 @app.get("/api/v1/dashboard/summary", response_model=DashboardSummary)
 def dashboard(_: User = Depends(require_admin), db: Session = Depends(get_db)):
     counts = {status.value.lower(): db.scalar(select(func.count(Project.id)).where(Project.status == status, Project.deleted_at.is_(None))) or 0 for status in ProjectStatus}
-    total_contract = db.scalar(select(func.coalesce(func.sum(CostItem.amount), 0)).where(CostItem.item_type == CostItemType.CONTRACT, CostItem.deleted_at.is_(None))) or 0
-    total_extra = db.scalar(select(func.coalesce(func.sum(CostItem.amount), 0)).where(CostItem.item_type == CostItemType.EXTRA, CostItem.deleted_at.is_(None))) or 0
+    total_contract = db.scalar(
+        select(func.coalesce(func.sum(EstimateDocument.total_amount), 0))
+        .join(Project, Project.contract_estimate_id == EstimateDocument.id)
+        .where(Project.deleted_at.is_(None))
+    ) or 0
+    total_extra = 0
     total_paid = db.scalar(select(func.coalesce(func.sum(Payment.total_amount), 0)).where(Payment.deleted_at.is_(None))) or 0
     return DashboardSummary(total=sum(counts.values()), planning=counts["planning"], in_progress=counts["in_progress"], completed=counts["completed"], on_hold=counts["on_hold"], cancelled=counts["cancelled"], total_contract=int(total_contract), total_extra=int(total_extra), total_paid=int(total_paid))
 
@@ -331,45 +346,52 @@ def status_history(project_id: UUID, _: User = Depends(require_admin), db: Sessi
 @app.get("/api/v1/projects/{project_id}/costs", response_model=dict)
 def list_costs(project_id: UUID, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     project_or_404(db, project_id)
-    costs = db.scalars(select(CostItem).where(CostItem.project_id == project_id, CostItem.deleted_at.is_(None)).order_by(CostItem.created_at.desc())).all()
-    totals = {kind.value.lower(): sum(item.amount for item in costs if item.item_type == kind) for kind in CostItemType}
-    final_items = [item for item in costs if item.item_type in (CostItemType.CONTRACT, CostItemType.EXTRA, CostItemType.DISCOUNT)]
-    supply_total = sum((-1 if item.item_type == CostItemType.DISCOUNT else 1) * item.supply_amount for item in final_items)
-    vat_total = sum((-1 if item.item_type == CostItemType.DISCOUNT else 1) * item.vat_amount for item in final_items)
-    return {"items": [CostOut.model_validate(item) for item in costs], "summary": CostSummary(estimate=totals["estimate"], contract=totals["contract"], extra=totals["extra"], discount=totals["discount"], final_total=supply_total + vat_total, supply_total=supply_total, vat_total=vat_total)}
-
-
-@app.post("/api/v1/projects/{project_id}/costs", response_model=CostOut, status_code=201)
-def create_cost(project_id: UUID, payload: CostCreate, user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    project_or_404(db, project_id)
-    values = payload.model_dump()
-    cost = CostItem(project_id=project_id, created_by=user.id, amount=values["supply_amount"] + values["vat_amount"], **values)
-    db.add(cost)
-    db.commit()
-    db.refresh(cost)
-    return cost
-
-
-@app.patch("/api/v1/projects/{project_id}/costs/{cost_id}", response_model=CostOut)
-def update_cost(project_id: UUID, cost_id: UUID, payload: CostUpdate, _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    cost = db.scalar(select(CostItem).where(CostItem.id == cost_id, CostItem.project_id == project_id, CostItem.deleted_at.is_(None)))
-    if not cost:
-        raise HTTPException(status_code=404, detail="비용 항목을 찾을 수 없습니다.")
-    for key, value in payload.model_dump(exclude_unset=True).items():
-        setattr(cost, key, value)
-    cost.amount = cost.supply_amount + cost.vat_amount
-    db.commit()
-    db.refresh(cost)
-    return cost
-
-
-@app.delete("/api/v1/projects/{project_id}/costs/{cost_id}", status_code=204)
-def delete_cost(project_id: UUID, cost_id: UUID, _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    cost = db.scalar(select(CostItem).where(CostItem.id == cost_id, CostItem.project_id == project_id, CostItem.deleted_at.is_(None)))
-    if not cost:
-        raise HTTPException(status_code=404, detail="비용 항목을 찾을 수 없습니다.")
-    cost.deleted_at = datetime.now(timezone.utc)
-    db.commit()
+    estimate = contract_estimate_for_project(db, project_id)
+    if not estimate:
+        return {
+            "items": [],
+            "estimate": None,
+            "summary": CostSummary(
+                contract=0,
+                final_total=0,
+                supply_total=0,
+                vat_total=0,
+            ),
+        }
+    items = [
+        ContractEstimateLineOut(
+            id=line.id,
+            project_id=project_id,
+            category=line.category,
+            name=line.name,
+            specification=line.specification,
+            quantity=line.quantity,
+            unit=line.unit,
+            unit_price=line.unit_price,
+            supply_amount=line.supply_amount,
+            vat_amount=line.vat_amount,
+            amount=line.total_amount,
+            memo=line.memo,
+            created_at=estimate.created_at,
+        )
+        for line in estimate.lines
+    ]
+    return {
+        "items": items,
+        "estimate": ContractEstimateReference(
+            id=estimate.id,
+            inquiry_id=estimate.inquiry_id,
+            version=estimate.version,
+            title=estimate.title,
+            total_amount=estimate.total_amount,
+        ),
+        "summary": CostSummary(
+            contract=estimate.total_amount,
+            final_total=estimate.total_amount,
+            supply_total=estimate.supply_amount,
+            vat_total=estimate.vat_amount,
+        ),
+    }
 
 
 @app.get("/api/v1/projects/{project_id}/payments", response_model=dict)
@@ -732,20 +754,6 @@ def convert_inquiry_to_project(inquiry_id: UUID, payload: InquiryConvert, user: 
     db.add(project)
     db.flush()
     db.add(ProjectStatusHistory(project_id=project.id, to_status=ProjectStatus.PLANNING, changed_by=user.id, note="견적 상담에서 계약 전환"))
-    if latest:
-        for line in latest.lines:
-            db.add(CostItem(
-                project_id=project.id,
-                category=line.category,
-                item_type=CostItemType.CONTRACT,
-                name=line.name,
-                supply_amount=line.supply_amount,
-                vat_amount=line.vat_amount,
-                amount=line.total_amount,
-                memo=line.memo or line.specification,
-                occurred_on=date.today(),
-                created_by=user.id,
-            ))
     inquiry.status = InquiryStatus.CONTRACTED
     inquiry.converted_project_id = project.id
     db.commit()

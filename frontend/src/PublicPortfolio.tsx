@@ -9,7 +9,10 @@ import {
 } from "lucide-react";
 import { api, mediaUrl } from "./api";
 import NaverMap from "./NaverMap";
+import Pagination from "./Pagination";
 import type { PublicProject, PublicProjectListItem } from "./types";
+
+const PUBLIC_PROJECTS_PAGE_SIZE = 3;
 
 const dateText = (value?: string) =>
   value
@@ -31,6 +34,7 @@ export default function PublicPortfolio() {
   const [items, setItems] = useState<PublicProjectListItem[]>([]);
   const [selected, setSelected] = useState<PublicProject | null>(null);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
   const [error, setError] = useState("");
   const [lightbox, setLightbox] = useState<number | null>(null);
 
@@ -87,6 +91,10 @@ export default function PublicPortfolio() {
           ]
         : [],
     [selected],
+  );
+  const visibleItems = items.slice(
+    (page - 1) * PUBLIC_PROJECTS_PAGE_SIZE,
+    page * PUBLIC_PROJECTS_PAGE_SIZE,
   );
 
   if (selected)
@@ -235,50 +243,58 @@ export default function PublicPortfolio() {
             시공 사례를 불러오는 중입니다…
           </p>
         ) : items.length ? (
-          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => openProject(item.id)}
-                className="group overflow-hidden rounded-3xl bg-white text-left shadow-[0_4px_18px_rgba(31,42,52,.05)]"
-              >
-                <div className="aspect-[4/3] overflow-hidden bg-[#eef1f3]">
-                  {item.cover_image ? (
-                    <img
-                      src={mediaUrl(item.cover_image.thumbnail_url)}
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-[#b0b8c1]">
-                      <Building2 size={32} />
-                    </div>
-                  )}
-                </div>
-                <div className="p-6">
-                  <p className="text-xs font-semibold text-[#2f7a4b]">
-                    {item.public_address}
-                  </p>
-                  <div className="mt-2 flex items-start justify-between gap-3">
-                    <h2 className="text-xl font-bold tracking-[-.03em]">
-                      {item.title}
-                    </h2>
-                    <ArrowRight
-                      size={19}
-                      className="mt-1 shrink-0 text-[#8b95a1]"
-                    />
+          <div className="mt-14">
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {visibleItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => openProject(item.id)}
+                  className="group overflow-hidden rounded-3xl bg-white text-left shadow-[0_4px_18px_rgba(31,42,52,.05)]"
+                >
+                  <div className="aspect-[4/3] overflow-hidden bg-[#eef1f3]">
+                    {item.cover_image ? (
+                      <img
+                        src={mediaUrl(item.cover_image.thumbnail_url)}
+                        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-[#b0b8c1]">
+                        <Building2 size={32} />
+                      </div>
+                    )}
                   </div>
-                  <p className="mt-3 text-sm text-[#8b95a1]">
-                    {[
-                      item.housing_type,
-                      item.area_pyeong ? `${item.area_pyeong}평` : "",
-                      dateText(item.actual_end_date),
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                </div>
-              </button>
-            ))}
+                  <div className="p-6">
+                    <p className="text-xs font-semibold text-[#2f7a4b]">
+                      {item.public_address}
+                    </p>
+                    <div className="mt-2 flex items-start justify-between gap-3">
+                      <h2 className="text-xl font-bold tracking-[-.03em]">
+                        {item.title}
+                      </h2>
+                      <ArrowRight
+                        size={19}
+                        className="mt-1 shrink-0 text-[#8b95a1]"
+                      />
+                    </div>
+                    <p className="mt-3 text-sm text-[#8b95a1]">
+                      {[
+                        item.housing_type,
+                        item.area_pyeong ? `${item.area_pyeong}평` : "",
+                        dateText(item.actual_end_date),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <Pagination
+              page={page}
+              pageSize={PUBLIC_PROJECTS_PAGE_SIZE}
+              total={items.length}
+              onPageChange={setPage}
+            />
           </div>
         ) : (
           <div className="mt-14 rounded-3xl bg-white py-24 text-center">

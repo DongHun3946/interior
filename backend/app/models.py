@@ -33,13 +33,6 @@ class ImageCategory(str, enum.Enum):
     ETC = "ETC"
 
 
-class CostItemType(str, enum.Enum):
-    ESTIMATE = "ESTIMATE"
-    CONTRACT = "CONTRACT"
-    EXTRA = "EXTRA"
-    DISCOUNT = "DISCOUNT"
-
-
 class CostCategory(str, enum.Enum):
     DEMOLITION = "DEMOLITION"
     CARPENTRY = "CARPENTRY"
@@ -196,7 +189,6 @@ class Project(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     images: Mapped[list["ProjectImage"]] = relationship(back_populates="project", cascade="all, delete-orphan")
-    cost_items: Mapped[list["CostItem"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     payments: Mapped[list["Payment"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     status_histories: Mapped[list["ProjectStatusHistory"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     simulations: Mapped[list["Simulation"]] = relationship(back_populates="project", cascade="all, delete-orphan")
@@ -223,26 +215,6 @@ class ProjectImage(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     project: Mapped[Project] = relationship(back_populates="images")
-
-
-class CostItem(Base):
-    __tablename__ = "cost_items"
-    id: Mapped[uuid.UUID] = uuid_column()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id"), index=True)
-    category: Mapped[CostCategory] = mapped_column(Enum(CostCategory), default=CostCategory.OTHER)
-    item_type: Mapped[CostItemType] = mapped_column(Enum(CostItemType), default=CostItemType.ESTIMATE)
-    name: Mapped[str] = mapped_column(String(200))
-    supply_amount: Mapped[int] = mapped_column(BigInteger, default=0)
-    vat_amount: Mapped[int] = mapped_column(BigInteger, default=0)
-    amount: Mapped[int] = mapped_column(BigInteger)
-    memo: Mapped[str | None] = mapped_column(Text, nullable=True)
-    occurred_on: Mapped[date | None] = mapped_column(Date, nullable=True)
-    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    project: Mapped[Project] = relationship(back_populates="cost_items")
 
 
 class Payment(Base):
@@ -291,6 +263,7 @@ class EstimateInquiry(Base):
     desired_budget: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     desired_start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     consultation_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    consultation_reserved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     request_details: Mapped[str | None] = mapped_column(Text, nullable=True)
     memo: Mapped[str | None] = mapped_column(Text, nullable=True)
     loss_reason: Mapped[str | None] = mapped_column(String(100), nullable=True)

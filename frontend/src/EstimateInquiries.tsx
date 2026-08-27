@@ -29,6 +29,7 @@ import ConfirmModal from "./ConfirmModal";
 import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
 import Pagination from "./Pagination";
 import { reportAppError } from "./errors";
+import { showSuccessToast } from "./Toast";
 import type {
   CompanySettings,
   EstimateDocument,
@@ -98,6 +99,63 @@ const lossReasonOptions: DropdownOption[] = [
   { value: "기타", label: "기타" },
 ];
 const won = (value = 0) => `${new Intl.NumberFormat("ko-KR").format(value)}원`;
+
+function EstimateAmountChange({
+  currentAmount,
+  nextAmount,
+}: {
+  currentAmount: number;
+  nextAmount: number;
+}) {
+  const difference = nextAmount - currentAmount;
+  const isIncrease = difference > 0;
+  const isDecrease = difference < 0;
+
+  return (
+    <div className="space-y-3" aria-label="견적 금액 변경 내역">
+      <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        <div className="min-w-0 rounded-xl border border-[#e1e7e2] bg-[#f7f9f7] px-3 py-3">
+          <p className="text-xs font-medium text-[#718078]">기존 금액</p>
+          <p className="mt-1 text-base font-semibold tabular-nums text-[#425349]">
+            {won(currentAmount)}
+          </p>
+        </div>
+        <span
+          className="flex size-7 shrink-0 rotate-90 items-center justify-center justify-self-center rounded-full bg-[#edf2ee] text-[#66766d] sm:rotate-0"
+          aria-hidden="true"
+        >
+          <ChevronRight size={16} strokeWidth={2.25} />
+        </span>
+        <div className="min-w-0 rounded-xl border border-[#b9d1c2] bg-[#f1f7f3] px-3 py-3">
+          <p className="text-xs font-medium text-[#51705f]">변경 금액</p>
+          <p className="mt-1 text-base font-bold tabular-nums text-[#24563b]">
+            {won(nextAmount)}
+          </p>
+        </div>
+      </div>
+      <div
+        className={`flex items-center justify-between gap-3 rounded-xl px-4 py-3 ${
+          isIncrease
+            ? "bg-rose-50 text-rose-700"
+            : isDecrease
+              ? "bg-emerald-50 text-emerald-700"
+              : "bg-slate-50 text-slate-600"
+        }`}
+      >
+        <span className="text-sm font-medium">증감액</span>
+        <div className="flex items-baseline gap-2">
+          <strong className="text-base font-bold tabular-nums">
+            {difference > 0 ? "+" : ""}
+            {won(difference)}
+          </strong>
+          <span className="text-xs font-semibold">
+            {isIncrease ? "증가" : isDecrease ? "감소" : "변동 없음"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 const estimateQuantity = (value: number) =>
   Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : 1;
 const pyeong = (value?: number) =>
@@ -850,7 +908,6 @@ function EstimateEditor({
       {applyConfirmOpen && estimate && (
         <ConfirmModal
           title={`${estimate.version + 1}차 견적서를 현장에 적용할까요?`}
-          description={`기존 ${won(estimate.total_amount)} → 변경 ${won(totals.total)} · 증감 ${won(totals.total - estimate.total_amount)}`}
           confirmLabel={saving ? "저장 및 적용 중…" : "저장 후 현장 적용"}
           busy={saving}
           onClose={() => setApplyConfirmOpen(false)}
@@ -858,7 +915,12 @@ function EstimateEditor({
             await save(true);
             setApplyConfirmOpen(false);
           }}
-        />
+        >
+          <EstimateAmountChange
+            currentAmount={estimate.total_amount}
+            nextAmount={totals.total}
+          />
+        </ConfirmModal>
       )}
     </div>
   );
@@ -1057,7 +1119,6 @@ function InquiryDetail({
   const [companySettings, setCompanySettings] =
     useState<CompanySettings | null>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
   const [convertForm, setConvertForm] = useState<{
     project_title: string;
     planned_start_date: string;
@@ -1159,10 +1220,12 @@ function InquiryDetail({
           await onReload();
           setSelectedEstimate(saved);
           if (applyToProject) setMappedEstimateId(saved.id);
-          setMessage(
+          showSuccessToast(
             applyToProject
               ? `${saved.version}차 견적서를 저장하고 현장에 적용했습니다.`
-              : `${saved.version}차 견적서를 저장했습니다.`,
+              : editor.estimate && !editor.newVersion
+                ? `${saved.version}차 견적서를 수정했습니다.`
+                : `${saved.version}차 견적서를 저장했습니다.`,
           );
           history.replaceState(
             {},
@@ -1182,6 +1245,7 @@ function InquiryDetail({
       });
       await onReload();
       setLossReasonForm(null);
+      showSuccessToast("진행 상태를 변경했습니다.");
     } catch (e) {
       setStatusError(
         e instanceof Error ? e.message : "진행 상태를 변경하지 못했습니다.",
@@ -1230,6 +1294,7 @@ function InquiryDetail({
         planned_end_date: convertForm.planned_end_date || null,
       });
       setConvertForm(null);
+      showSuccessToast("견적 문의를 현장으로 전환했습니다.");
       onOpenProject(project.id);
     } catch (e) {
       setConvertError(
@@ -1245,6 +1310,7 @@ function InquiryDetail({
     setProjectActionError("");
     try {
       await api.restoreProject(inquiry.converted_project_id);
+      showSuccessToast("현장을 복원했습니다.");
       onOpenProject(inquiry.converted_project_id);
     } catch (e) {
       setProjectActionError(
@@ -1260,6 +1326,7 @@ function InquiryDetail({
     try {
       await api.deleteInquiry(inquiry.id);
       setDeleteInquiryOpen(false);
+      showSuccessToast("견적 문의를 삭제했습니다.");
       onDeleted();
     } catch (e) {
       setDeleteInquiryError(
@@ -1300,11 +1367,6 @@ function InquiryDetail({
               </button>
             </div>
           </div>
-          {message && (
-            <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {message}
-            </p>
-          )}
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-[#718078]">
@@ -1364,10 +1426,24 @@ function InquiryDetail({
                 </p>
               </div>
               <button
-                className="rounded-lg bg-[#e7f0e8] p-2 text-[#376246]"
-                onClick={() => setEditor({})}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#e7f0e8] px-3 py-2 text-xs font-bold text-[#376246] transition hover:bg-[#dceadd]"
+                type="button"
+                aria-label="새 견적 작성"
+                title="새 견적 작성"
+                onClick={() =>
+                  setEditor(
+                    selectedEstimate
+                      ? {
+                          estimate: selectedEstimate,
+                          newVersion: true,
+                          applyProjectId: inquiry.converted_project_id,
+                        }
+                      : {},
+                  )
+                }
               >
                 <FilePlus2 size={17} />
+                새 견적 작성
               </button>
             </div>
             {estimates.length ? (
@@ -1378,8 +1454,15 @@ function InquiryDetail({
                     onClick={() => setSelectedEstimate(estimate)}
                     className={`flex w-full items-center justify-between p-4 text-left ${selectedEstimate?.id === estimate.id ? "bg-[#f0f6f0]" : "hover:bg-[#fafbfa]"}`}
                   >
-                    <div>
-                      <b className="text-sm">{estimate.version}차 견적</b>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <b className="text-sm">{estimate.version}차 견적</b>
+                        {mappedEstimateId === estimate.id && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                            <CheckCircle2 size={11} /> 현장 적용 중
+                          </span>
+                        )}
+                      </div>
                       <p className="mt-1 text-xs text-[#849188]">
                         {won(estimate.total_amount)}
                       </p>
@@ -1410,11 +1493,7 @@ function InquiryDetail({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {inquiry.converted_project_id &&
-                    (mappedEstimateId === selectedEstimate.id ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
-                        <CheckCircle2 size={15} /> 현장 적용 중
-                      </span>
-                    ) : (
+                    mappedEstimateId !== selectedEstimate.id && (
                       <button
                         className="btn-primary"
                         onClick={() => {
@@ -1424,7 +1503,7 @@ function InquiryDetail({
                       >
                         <CheckCircle2 size={15} /> 현장에 적용
                       </button>
-                    ))}
+                    )}
                   <button
                     className="btn-secondary"
                     onClick={() => setPrinting(selectedEstimate)}
@@ -1436,18 +1515,6 @@ function InquiryDetail({
                     onClick={() => setEditor({ estimate: selectedEstimate })}
                   >
                     <Pencil size={15} /> 수정
-                  </button>
-                  <button
-                    className="btn-secondary"
-                    onClick={() =>
-                      setEditor({
-                        estimate: selectedEstimate,
-                        newVersion: true,
-                        applyProjectId: inquiry.converted_project_id,
-                      })
-                    }
-                  >
-                    <FilePlus2 size={15} /> 새 견적 작성
                   </button>
                 </div>
               </div>
@@ -1700,7 +1767,6 @@ function InquiryDetail({
       {estimateToApply && inquiry.converted_project_id && (
         <ConfirmModal
           title={`${estimateToApply.version}차 견적서를 현장에 적용할까요?`}
-          description={`현재 ${won(mappedEstimate?.total_amount || 0)} → 변경 ${won(estimateToApply.total_amount)} · 증감 ${won(estimateToApply.total_amount - (mappedEstimate?.total_amount || 0))}`}
           confirmLabel={applyingEstimate ? "적용 중..." : "현장에 적용"}
           busy={applyingEstimate}
           onClose={() => {
@@ -1716,7 +1782,7 @@ function InquiryDetail({
                 estimateToApply.id,
               );
               setMappedEstimateId(estimateToApply.id);
-              setMessage(
+              showSuccessToast(
                 `${estimateToApply.version}차 견적서를 현장에 적용했습니다.`,
               );
               setEstimateToApply(null);
@@ -1731,11 +1797,17 @@ function InquiryDetail({
             }
           }}
         >
-          {projectActionError && (
-            <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {projectActionError}
-            </p>
-          )}
+          <div className="space-y-3">
+            <EstimateAmountChange
+              currentAmount={mappedEstimate?.total_amount || 0}
+              nextAmount={estimateToApply.total_amount}
+            />
+            {projectActionError && (
+              <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {projectActionError}
+              </p>
+            )}
+          </div>
         </ConfirmModal>
       )}
       {lossReasonForm !== null && (
@@ -1880,6 +1952,11 @@ export default function EstimateInquiriesPage({
         inquiry={formMode === "edit" ? selected || undefined : undefined}
         onCancel={() => setFormMode(null)}
         onSaved={async (saved) => {
+          showSuccessToast(
+            formMode === "edit"
+              ? "견적 문의 정보를 수정했습니다."
+              : "견적 문의를 등록했습니다.",
+          );
           setFormMode(null);
           setSelected(await api.inquiry(saved.id));
           await loadList();

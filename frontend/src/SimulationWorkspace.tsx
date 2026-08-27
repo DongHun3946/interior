@@ -38,6 +38,7 @@ import type {
   SpaceScan,
   SurfaceMaterial,
 } from "./types";
+import { showSuccessToast } from "./Toast";
 
 const furnitureCatalog = [
   {
@@ -497,7 +498,6 @@ export default function SimulationWorkspace({
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [materialForm, setMaterialForm] = useState({
     name: "",
     material_type: "WALLPAPER" as MaterialType,
@@ -564,7 +564,6 @@ export default function SimulationWorkspace({
       return next;
     });
     setDirty(true);
-    setNotice("");
   };
   const room = scene?.structure.rooms[0];
   const selected = scene?.placements.find((item) => item.id === selectedId);
@@ -579,6 +578,7 @@ export default function SimulationWorkspace({
       const item = await api.createSimulation(projectId);
       setSimulations((current) => [item, ...current]);
       chooseSimulation(item);
+      showSuccessToast("새 시뮬레이션을 생성했습니다.");
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -607,7 +607,7 @@ export default function SimulationWorkspace({
       );
       setVersion(updated);
       setDirty(false);
-      setNotice("현재 버전에 저장했습니다.");
+      showSuccessToast("현재 버전에 저장했습니다.");
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "저장하지 못했습니다.",
@@ -633,7 +633,7 @@ export default function SimulationWorkspace({
       );
       setVersion(created);
       setDirty(false);
-      setNotice(`버전 ${created.version}으로 저장했습니다.`);
+      showSuccessToast(`버전 ${created.version}으로 저장했습니다.`);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -660,7 +660,7 @@ export default function SimulationWorkspace({
         items.map((item) => (item.id === next.id ? next : item)),
       );
       setVersion(updated);
-      setNotice("치수를 확인한 버전으로 표시했습니다.");
+      showSuccessToast("치수를 확인한 버전으로 표시했습니다.");
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "확인 처리하지 못했습니다.",
@@ -702,7 +702,7 @@ export default function SimulationWorkspace({
       setMaterialFile(undefined);
       setMaterialForm((current) => ({ ...current, name: "" }));
       if (materialInput.current) materialInput.current.value = "";
-      setNotice("재질을 라이브러리에 추가했습니다.");
+      showSuccessToast("재질을 라이브러리에 추가했습니다.");
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -727,7 +727,7 @@ export default function SimulationWorkspace({
           item.id === scan.id ? { ...item, status: "QUEUED" } : item,
         ),
       );
-      setNotice("파일 업로드가 끝났으며 AI 공간 분석 대기열에 등록했습니다.");
+      showSuccessToast("파일 업로드가 끝났으며 AI 공간 분석 대기열에 등록했습니다.");
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -745,7 +745,7 @@ export default function SimulationWorkspace({
     try {
       await api.generateFurnitureFromFiles(projectId, furnitureFiles);
       setFurnitureFiles([]);
-      setNotice("가구 사진을 업로드하고 3D 모델 생성 대기열에 등록했습니다.");
+      showSuccessToast("가구 사진을 업로드하고 3D 모델 생성 대기열에 등록했습니다.");
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -866,11 +866,9 @@ export default function SimulationWorkspace({
           </button>
         </div>
       </div>
-      {(error || notice) && (
-        <div
-          className={`rounded-xl px-4 py-3 text-sm ${error ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}
-        >
-          {error || notice}
+      {error && (
+        <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
         </div>
       )}
       <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">

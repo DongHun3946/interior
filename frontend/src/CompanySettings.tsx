@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Building2, CheckCircle2, Clock3, Save, ShieldCheck } from "lucide-react";
+import { Building2, Clock3, Save, ShieldCheck } from "lucide-react";
 
 import { api } from "./api";
 import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
 import type { CompanySettings } from "./types";
+import { showSuccessToast } from "./Toast";
 
 const sessionTimeoutOptions: DropdownOption[] = [
   { value: "60", label: "1시간" },
@@ -29,7 +30,6 @@ export default function CompanySettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     api
@@ -49,19 +49,17 @@ export default function CompanySettingsPage() {
     key: K,
     value: CompanySettings[K],
   ) => {
-    setSaved(false);
     setForm((current) => ({ ...current, [key]: value }));
   };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
-    setSaved(false);
     setError("");
     try {
       const updated = await api.updateCompanySettings(form);
       setForm(updated);
-      setSaved(true);
+      showSuccessToast("업체 정보를 저장했습니다.");
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -88,11 +86,6 @@ export default function CompanySettingsPage() {
               </p>
             </div>
           </div>
-          {saved && (
-            <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
-              <CheckCircle2 size={17} /> 저장되었습니다
-            </p>
-          )}
         </div>
 
         <div className="p-6 sm:p-8">

@@ -9,13 +9,13 @@ import {
 } from "react";
 import {
   ArrowUpRight,
-  Banknote,
   CalendarDays,
   Camera,
   Check,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
+  ChevronRight,
   ClipboardList,
   Clock3,
   FilePlus2,
@@ -32,7 +32,6 @@ import {
   Search,
   Trash2,
   Upload,
-  WalletCards,
   X,
 } from "lucide-react";
 import { AUTH_EXPIRED_EVENT, api, mediaUrl } from "./api";
@@ -51,6 +50,7 @@ import type {
   PaymentSummary,
   CostSummary,
   GeocodeResult,
+  EstimateInquiry,
 } from "./types";
 import PublicPortfolio from "./PublicPortfolio";
 import NaverMap from "./NaverMap";
@@ -66,6 +66,7 @@ import PhotoLibrary from "./PhotoLibrary";
 import ConfirmModal from "./ConfirmModal";
 import Modal from "./Modal";
 import Pagination from "./Pagination";
+import { showSuccessToast } from "./Toast";
 
 const statusLabels: Record<ProjectStatus, string> = {
   PLANNING: "예정",
@@ -611,36 +612,534 @@ function StatCard({
   icon: typeof House;
 }) {
   return (
-    <div className="panel relative overflow-hidden p-5">
-      <div className={`mb-5 inline-flex rounded-xl p-2.5 ${tone}`}>
-        <Icon size={18} />
+    <div className="panel relative flex items-center gap-3 overflow-hidden px-4 py-3.5">
+      <div className={`inline-flex shrink-0 rounded-lg p-2 ${tone}`}>
+        <Icon size={16} />
       </div>
-      <p className="text-xs font-semibold uppercase tracking-[.12em] text-[#87938b]">
-        {label}
-      </p>
-      <p className="mt-1 text-3xl font-semibold tracking-tight text-[#18372b]">
-        {value}
-      </p>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-[#87938b]">{label}</p>
+        <p className="text-xl font-bold leading-tight tracking-tight text-[#18372b]">
+          {value}
+        </p>
+      </div>
     </div>
+  );
+}
+
+const calendarDateKey = (date: Date) => {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+const calendarDateTimeKey = (value: string) => calendarDateKey(new Date(value));
+
+const calendarTime = (value: string) =>
+  new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(value));
+
+function DashboardCalendar({
+  onOpenProject,
+  onOpenInquiry,
+}: {
+  onOpenProject: (id: string) => void;
+  onOpenInquiry: (id: string) => void;
+}) {
+  const [month, setMonth] = useState(
+    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  );
+  const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const [inquiries, setInquiries] = useState<EstimateInquiry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string>();
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    Promise.all([
+      api.projects("page_size=100&status=IN_PROGRESS"),
+      api.projects("page_size=100&status=PLANNING"),
+      api.inquiries("?page_size=100&status=CONSULTATION_SCHEDULED"),
+    ])
+      .then(([activeProjectResult, plannedProjectResult, inquiryResult]) => {
+        if (!active) return;
+        setProjects([
+          ...activeProjectResult.items,
+          ...plannedProjectResult.items,
+        ]);
+        setInquiries(inquiryResult.items);
+        setError("");
+      })
+      .catch(() => {
+        if (active) setError("일정 정보를 불러오지 못했습니다.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const calendarDays = useMemo(() => {
+    const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
+    const mondayOffset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(
+      month.getFullYear(),
+      month.getMonth() + 1,
+      0,
+    ).getDate();
+    const cellCount = mondayOffset + daysInMonth > 35 ? 42 : 35;
+    const gridStart = new Date(
+      month.getFullYear(),
+      month.getMonth(),
+      1 - mondayOffset,
+    );
+    return Array.from({ length: cellCount }, (_, index) =>
+      new Date(
+        gridStart.getFullYear(),
+        gridStart.getMonth(),
+        gridStart.getDate() + index,
+      ),
+    );
+  }, [month]);
+
+  const todayKey = calendarDateKey(new Date());
+  const visibleMonthLabel = `${month.getFullYear()}년 ${month.getMonth() + 1}월`;
+  const selectedDaySchedule = useMemo(() => {
+    if (!selectedCalendarDate) return [];
+    return [
+      ...inquiries
+        .filter(
+          (inquiry) =>
+            inquiry.consultation_reserved_at &&
+            calendarDateTimeKey(inquiry.consultation_reserved_at) ===
+              selectedCalendarDate,
+        )
+        .map((inquiry) => ({
+          kind: "consultation" as const,
+          inquiry,
+          priority: 0,
+        })),
+      ...projects
+        .filter((project) => {
+          if (!project.planned_start_date || !project.planned_end_date)
+            return false;
+          const [start, end] = [
+            project.planned_start_date,
+            project.planned_end_date,
+          ].sort();
+          return start <= selectedCalendarDate && selectedCalendarDate <= end;
+        })
+        .map((project) => ({
+          kind: "project" as const,
+          project,
+          priority: project.status === "IN_PROGRESS" ? 1 : 2,
+        })),
+    ].sort((left, right) => left.priority - right.priority);
+  }, [inquiries, projects, selectedCalendarDate]);
+
+  return (
+    <section className="panel overflow-hidden">
+      <div className="flex flex-col gap-4 border-b border-[#e5ebe6] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <CalendarDays size={19} className="text-[#376246]" />
+            <h3 className="text-lg font-bold text-[#203a2d]">일정 캘린더</h3>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-4 text-xs font-semibold text-[#66766d]">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2.5 rounded-sm bg-[#3f7650]" /> 공사 중
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2.5 rounded-sm bg-[#4f78ad]" /> 공사 예정
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2.5 rounded-sm bg-[#d7832f]" /> 상담 예약
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            className="rounded-lg border border-[#d8e0d9] bg-white p-2 text-[#50655a] transition hover:bg-[#f2f6f3]"
+            onClick={() =>
+              setMonth(
+                (current) =>
+                  new Date(current.getFullYear(), current.getMonth() - 1, 1),
+              )
+            }
+            aria-label="이전 달"
+          >
+            <ChevronLeft size={17} />
+          </button>
+          <p className="min-w-28 text-center text-base font-bold text-[#294534]">
+            {visibleMonthLabel}
+          </p>
+          <button
+            type="button"
+            className="rounded-lg border border-[#d8e0d9] bg-white p-2 text-[#50655a] transition hover:bg-[#f2f6f3]"
+            onClick={() =>
+              setMonth(
+                (current) =>
+                  new Date(current.getFullYear(), current.getMonth() + 1, 1),
+              )
+            }
+            aria-label="다음 달"
+          >
+            <ChevronRight size={17} />
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-[#c9d7cc] bg-[#f2f7f3] px-3 py-2 text-xs font-bold text-[#376246] transition hover:bg-[#e7f0e8]"
+            onClick={() => {
+              const today = new Date();
+              setMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+            }}
+          >
+            오늘
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[760px]">
+          <div className="grid grid-cols-7 border-b border-[#e7ece8] bg-[#f7f9f7]">
+            {["월", "화", "수", "목", "금", "토", "일"].map(
+              (weekday, index) => (
+                <div
+                  key={weekday}
+                  className={`px-3 py-2 text-center text-xs font-bold ${
+                    index === 6 ? "text-rose-500" : "text-[#66766d]"
+                  }`}
+                >
+                  {weekday}
+                </div>
+              ),
+            )}
+          </div>
+          <div className="divide-y divide-[#e5ebe6]">
+            {Array.from(
+              { length: calendarDays.length / 7 },
+              (_, weekIndex) => calendarDays.slice(weekIndex * 7, weekIndex * 7 + 7),
+            ).map((weekDays) => {
+              const weekStartKey = calendarDateKey(weekDays[0]);
+              const weekEndKey = calendarDateKey(weekDays[6]);
+              const laneRanges: Array<Array<{ start: string; end: string }>> = [];
+              const scheduleItems = [
+                ...inquiries.flatMap((inquiry) => {
+                  if (!inquiry.consultation_reserved_at) return [];
+                  const dateKey = calendarDateTimeKey(
+                    inquiry.consultation_reserved_at,
+                  );
+                  if (dateKey < weekStartKey || dateKey > weekEndKey) return [];
+                  return [
+                    {
+                      kind: "consultation" as const,
+                      inquiry,
+                      segmentStart: dateKey,
+                      segmentEnd: dateKey,
+                      priority: 0,
+                    },
+                  ];
+                }),
+                ...projects.flatMap((project) => {
+                  if (!project.planned_start_date || !project.planned_end_date)
+                    return [];
+                  const [start, end] = [
+                    project.planned_start_date,
+                    project.planned_end_date,
+                  ].sort();
+                  if (end < weekStartKey || start > weekEndKey) return [];
+                  const segmentStart = start < weekStartKey ? weekStartKey : start;
+                  const segmentEnd = end > weekEndKey ? weekEndKey : end;
+                  return [
+                    {
+                      kind: "project" as const,
+                      project,
+                      start,
+                      end,
+                      segmentStart,
+                      segmentEnd,
+                      priority: project.status === "IN_PROGRESS" ? 1 : 2,
+                    },
+                  ];
+                }),
+              ]
+                .sort(
+                  (left, right) =>
+                    left.priority - right.priority ||
+                    left.segmentStart.localeCompare(right.segmentStart) ||
+                    left.segmentEnd.localeCompare(right.segmentEnd),
+                )
+                .map((item) => {
+                  let lane = laneRanges.findIndex((ranges) =>
+                    ranges.every(
+                      (range) =>
+                        item.segmentEnd < range.start ||
+                        item.segmentStart > range.end,
+                    ),
+                  );
+                  if (lane === -1) {
+                    lane = laneRanges.length;
+                    laneRanges.push([]);
+                  }
+                  laneRanges[lane].push({
+                    start: item.segmentStart,
+                    end: item.segmentEnd,
+                  });
+                  return { ...item, lane };
+                });
+              const laneCount = laneRanges.length;
+              const visibleLaneCount = Math.min(laneCount, 3);
+
+              return (
+                <div key={weekStartKey} className="relative">
+                  <div className="grid grid-cols-7 gap-px bg-[#e5ebe6]">
+                    {weekDays.map((date) => {
+                      const dateKey = calendarDateKey(date);
+                      const isCurrentMonth =
+                        date.getMonth() === month.getMonth();
+                      const hiddenScheduleCount = scheduleItems.filter(
+                        (item) =>
+                          item.lane >= 3 &&
+                          item.segmentStart <= dateKey &&
+                          dateKey <= item.segmentEnd,
+                      ).length;
+                      return (
+                        <div
+                          key={dateKey}
+                          className={`min-h-28 bg-white ${
+                            isCurrentMonth ? "" : "bg-[#fafbfa]"
+                          }`}
+                        >
+                          <div className="flex justify-end px-2 pb-1.5 pt-2">
+                            <span
+                              className={`flex size-6 items-center justify-center rounded-full text-xs font-semibold ${
+                                dateKey === todayKey
+                                  ? "bg-[#234c38] text-white"
+                                  : isCurrentMonth
+                                    ? "text-[#465a4f]"
+                                    : "text-[#a1aaa4]"
+                              }`}
+                            >
+                              {date.getDate()}
+                            </span>
+                          </div>
+                          <div style={{ height: visibleLaneCount * 28 }} />
+                          {hiddenScheduleCount > 0 && (
+                            <div className="px-2 pb-2">
+                              <button
+                                type="button"
+                                className="w-full rounded-md bg-[#f1f4f2] px-2 py-1 text-left text-[11px] font-bold text-[#596a60] transition hover:bg-[#e5ebe6] hover:text-[#294534]"
+                                onClick={() => setSelectedCalendarDate(dateKey)}
+                              >
+                                +{hiddenScheduleCount}개 일정
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {scheduleItems.some((item) => item.lane < 3) && (
+                    <div
+                      className="pointer-events-none absolute inset-x-0 top-[38px] grid grid-cols-7 gap-x-px gap-y-1"
+                      style={{
+                        gridTemplateRows: `repeat(${visibleLaneCount}, 24px)`,
+                      }}
+                    >
+                      {scheduleItems
+                        .filter((item) => item.lane < 3)
+                        .map((item) => {
+                        const startColumn = weekDays.findIndex(
+                          (date) =>
+                            calendarDateKey(date) === item.segmentStart,
+                        );
+                        const endColumn = weekDays.findIndex(
+                          (date) => calendarDateKey(date) === item.segmentEnd,
+                        );
+                        if (item.kind === "consultation") {
+                          const label = `상담 예약 · ${calendarTime(item.inquiry.consultation_reserved_at!)} ${item.inquiry.customer_name}`;
+                          return (
+                            <button
+                              key={`consultation-${item.inquiry.id}`}
+                              type="button"
+                              className="pointer-events-auto mx-2 flex min-w-0 items-center truncate rounded-md border-x-[3px] border-x-[#b86518] bg-[#fff0df] px-2 text-left text-[11px] font-semibold text-[#9a5b1e] transition hover:z-20 hover:brightness-95"
+                              style={{
+                                gridColumn: `${startColumn + 1} / ${endColumn + 2}`,
+                                gridRow: item.lane + 1,
+                              }}
+                              onClick={() => onOpenInquiry(item.inquiry.id)}
+                              title={label}
+                              aria-label={label}
+                            >
+                              {label}
+                            </button>
+                          );
+                        }
+
+                        const startsHere = item.start === item.segmentStart;
+                        const endsHere = item.end === item.segmentEnd;
+                        const statusLabel =
+                          item.project.status === "PLANNING"
+                            ? "공사 예정"
+                            : "공사 중";
+                        return (
+                          <button
+                            key={`project-${item.project.id}`}
+                            type="button"
+                            className={`pointer-events-auto mx-0 flex min-w-0 items-center truncate px-2 text-left text-[11px] font-semibold transition hover:z-20 hover:brightness-95 ${
+                              item.project.status === "PLANNING"
+                                ? "bg-[#e4edf9] text-[#315f99]"
+                                : "bg-[#dcece0] text-[#285d3a]"
+                            } ${
+                              startsHere
+                                ? `ml-2 rounded-l-md border-l-[3px] ${
+                                    item.project.status === "PLANNING"
+                                      ? "border-l-[#315f99]"
+                                      : "border-l-[#285d3a]"
+                                  }`
+                                : "rounded-l-none"
+                            } ${
+                              endsHere
+                                ? `mr-2 rounded-r-md border-r-[3px] ${
+                                    item.project.status === "PLANNING"
+                                      ? "border-r-[#315f99]"
+                                      : "border-r-[#285d3a]"
+                                  }`
+                                : "rounded-r-none"
+                            }`}
+                            style={{
+                              gridColumn: `${startColumn + 1} / ${endColumn + 2}`,
+                              gridRow: item.lane + 1,
+                            }}
+                            onClick={() => onOpenProject(item.project.id)}
+                            title={`${statusLabel} · ${item.project.title}`}
+                            aria-label={`${statusLabel} · ${item.project.title}`}
+                          >
+                            {startsHere && (
+                              <>
+                                {statusLabel} · {item.project.title}
+                              </>
+                            )}
+                          </button>
+                        );
+                        })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {(loading || error) && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-[#e5ebe6] bg-[#fafbfa] px-5 py-3 text-xs text-[#6b786f] sm:px-6">
+          {loading && <span>일정을 불러오는 중입니다…</span>}
+          {error && <span className="text-rose-600">{error}</span>}
+        </div>
+      )}
+
+      {selectedCalendarDate && (
+        <Modal
+          title={
+            Number(selectedCalendarDate.slice(5, 7)) +
+            "월 " +
+            Number(selectedCalendarDate.slice(8, 10)) +
+            "일 일정"
+          }
+          description={"총 " + selectedDaySchedule.length + "개의 일정이 있습니다."}
+          onClose={() => setSelectedCalendarDate(undefined)}
+          maxWidthClass="max-w-md"
+        >
+          <div className="space-y-2 px-5 pb-5">
+            {selectedDaySchedule.map((item) => {
+              if (item.kind === "consultation") {
+                return (
+                  <button
+                    key={"consultation-" + item.inquiry.id}
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-xl border border-[#f0d2af] border-l-4 border-l-[#b86518] bg-[#fff8ef] px-4 py-3 text-left transition hover:bg-[#fff1df]"
+                    onClick={() => {
+                      setSelectedCalendarDate(undefined);
+                      onOpenInquiry(item.inquiry.id);
+                    }}
+                  >
+                    <span className="shrink-0 rounded-md bg-[#ffe7c8] px-2 py-1 text-xs font-bold text-[#9a5b1e]">
+                      상담 예약
+                    </span>
+                    <span className="min-w-0">
+                      <strong className="block truncate text-sm text-[#3f3429]">
+                        {item.inquiry.customer_name}
+                      </strong>
+                      <span className="mt-0.5 block text-xs text-[#856b50]">
+                        {calendarTime(item.inquiry.consultation_reserved_at!)}
+                      </span>
+                    </span>
+                  </button>
+                );
+              }
+
+              const isPlanned = item.project.status === "PLANNING";
+              return (
+                <button
+                  key={"project-" + item.project.id}
+                  type="button"
+                  className={`flex w-full items-center gap-3 rounded-xl border border-l-4 px-4 py-3 text-left transition ${
+                    isPlanned
+                      ? "border-[#cbd9ec] border-l-[#315f99] bg-[#f3f7fc] hover:bg-[#e9f0f9]"
+                      : "border-[#c8dece] border-l-[#285d3a] bg-[#f1f7f3] hover:bg-[#e7f1e9]"
+                  }`}
+                  onClick={() => {
+                    setSelectedCalendarDate(undefined);
+                    onOpenProject(item.project.id);
+                  }}
+                >
+                  <span
+                    className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${
+                      isPlanned
+                        ? "bg-[#dce8f7] text-[#315f99]"
+                        : "bg-[#dcece0] text-[#285d3a]"
+                    }`}
+                  >
+                    {isPlanned ? "공사 예정" : "공사 중"}
+                  </span>
+                  <span className="min-w-0">
+                    <strong className="block truncate text-sm text-[#294534]">
+                      {item.project.title}
+                    </strong>
+                    <span className="mt-0.5 block text-xs text-[#66766d]">
+                      {item.project.planned_start_date} ~{" "}
+                      {item.project.planned_end_date}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </Modal>
+      )}
+    </section>
   );
 }
 
 function DashboardPage({
   data,
   onProjects,
-  onOpen,
+  onOpenProject,
+  onOpenInquiry,
 }: {
   data: Dashboard | null;
   onProjects: () => void;
-  onOpen: (id: string) => void;
+  onOpenProject: (id: string) => void;
+  onOpenInquiry: (id: string) => void;
 }) {
-  const [recent, setRecent] = useState<ProjectListItem[]>([]);
-  useEffect(() => {
-    api
-      .projects("page_size=5&sort=created_at")
-      .then((result) => setRecent(result.items))
-      .catch(() => {});
-  }, []);
   if (!data)
     return (
       <div className="p-8 text-sm text-[#7d8981]">
@@ -665,7 +1164,7 @@ function DashboardPage({
           <Plus size={17} />새 현장 등록
         </button>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid max-w-3xl gap-3 sm:grid-cols-3">
         <StatCard
           label="전체 현장"
           value={data.total}
@@ -684,124 +1183,11 @@ function DashboardPage({
           tone="bg-[#eef0fb] text-[#6172ae]"
           icon={CheckCircle2}
         />
-        <StatCard
-          label="계약 금액"
-          value={money(data.total_contract)}
-          tone="bg-[#f5eaf0] text-[#9a5970]"
-          icon={WalletCards}
-        />
-        <StatCard
-          label="실제 입금액"
-          value={money(data.total_paid)}
-          tone="bg-[#e8f1f4] text-[#467383]"
-          icon={Banknote}
-        />
       </div>
-      <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
-        <div className="panel p-5 sm:p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-[#87938b]">
-                등록일 기준
-              </p>
-              <h3 className="serif mt-1 text-xl text-[#20362b]">
-                최근 등록한 현장
-              </h3>
-            </div>
-            <button
-              className="rounded-lg border border-[#d7e1d8] bg-white px-4 py-2 text-xs font-semibold text-[#56805f] transition hover:border-[#aec2b1] hover:bg-[#f5f8f5]"
-              onClick={onProjects}
-            >
-              모두 보기
-            </button>
-          </div>
-          <div className="mt-5 divide-y divide-[#eef1ed]">
-            {recent.length ? (
-              recent.map((project) => (
-                <button
-                  key={project.id}
-                  onClick={() => onOpen(project.id)}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-[#edf5ef]"
-                >
-                  <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-[#edf2ed]">
-                    {project.cover_image ? (
-                      <img
-                        src={mediaUrl(project.cover_image.thumbnail_url)}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-[#9bad9f]">
-                        <ImageIcon size={17} />
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-[#2b4736]">
-                      {project.title}
-                    </p>
-                    <p className="mt-1 flex items-center gap-1 text-xs text-[#98a39b]">
-                      <MapPin size={12} />
-                      {project.address}
-                    </p>
-                  </div>
-                  <Badge status={project.status} />
-                </button>
-              ))
-            ) : (
-              <p className="py-10 text-center text-sm text-[#9aa49d]">
-                아직 등록된 현장이 없습니다.
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="panel relative isolate flex min-h-[300px] flex-col overflow-hidden bg-gradient-to-br from-[#eaf2e9] via-[#f1f6ef] to-[#dfeade] p-6 sm:p-7">
-          <div className="pointer-events-none absolute -right-16 -top-20 -z-10 h-52 w-52 rounded-full border-[36px] border-white/40" />
-          <div className="pointer-events-none absolute -bottom-20 -left-16 -z-10 h-48 w-48 rounded-full bg-white/30" />
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/80 bg-white/75 text-[#3f7050] shadow-[0_8px_20px_rgba(45,86,57,.10)] backdrop-blur-sm">
-              <ClipboardList size={20} strokeWidth={2} />
-            </div>
-            <span className="rounded-full border border-[#cbdcca] bg-white/65 px-3 py-1 text-[10px] font-bold tracking-wide text-[#63816b]">
-              외부 서비스
-            </span>
-          </div>
-          <div className="mt-6">
-            <p className="text-xs font-bold text-[#63816b]">업무 바로가기</p>
-            <h3 className="serif mt-2 text-2xl leading-snug text-[#244630]">
-              전자세금계산서
-              <br />
-              발급이 필요하신가요?
-            </h3>
-            <p className="mt-3 max-w-md text-sm leading-6 text-[#64806b]">
-              국세청 홈택스에서 전자세금계산서를 발급하거나 발급 내역을 조회할
-              수 있습니다.
-            </p>
-          </div>
-          <div className="mt-auto pt-6">
-            <a
-              href="https://www.hometax.go.kr/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex w-full items-center justify-between rounded-xl bg-[#294c35] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(29,62,40,.16)] transition hover:-translate-y-0.5 hover:bg-[#1e3b29] hover:shadow-[0_12px_24px_rgba(29,62,40,.20)] focus:outline-none focus:ring-2 focus:ring-[#628b72] focus:ring-offset-2"
-              aria-label="국세청 홈택스 새 창으로 열기"
-            >
-              <span>
-                홈택스 새 창으로 열기
-                <span className="ml-2 text-[10px] font-medium text-white/65">
-                  로그인 필요
-                </span>
-              </span>
-              <ArrowUpRight
-                size={17}
-                className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-              />
-            </a>
-            <p className="mt-2.5 text-center text-[11px] text-[#7b8e80]">
-              공동·금융인증서 로그인이 필요할 수 있습니다.
-            </p>
-          </div>
-        </div>
-      </div>
+      <DashboardCalendar
+        onOpenProject={onOpenProject}
+        onOpenInquiry={onOpenInquiry}
+      />
     </div>
   );
 }
@@ -948,6 +1334,7 @@ function ProjectsPage({
     try {
       await api.restoreProject(id);
       load();
+      showSuccessToast("현장을 복원했습니다.");
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -1238,6 +1625,9 @@ function ProjectForm({
       const result = project
         ? await api.updateProject(project.id, body)
         : await api.createProject(body);
+      showSuccessToast(
+        project ? "현장 정보를 수정했습니다." : "새 현장을 등록했습니다.",
+      );
       onDone(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "저장에 실패했습니다.");
@@ -1549,6 +1939,7 @@ function DetailPage({
         Boolean(project?.is_public),
       );
       load();
+      showSuccessToast("사진을 등록했습니다.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "업로드에 실패했습니다.");
     } finally {
@@ -1588,6 +1979,7 @@ function DetailPage({
       memo: "",
     });
     setPayments(await api.payments(id));
+    showSuccessToast("입금 내역을 등록했습니다.");
   };
   const deleteProject = async () => {
     setDeletingProject(true);
@@ -1595,6 +1987,7 @@ function DetailPage({
     try {
       await api.deleteProject(id);
       setProjectDeleteOpen(false);
+      showSuccessToast("현장을 삭제했습니다.");
       onDeleted();
     } catch (e) {
       setError(e instanceof Error ? e.message : "현장을 삭제하지 못했습니다.");
@@ -1610,6 +2003,7 @@ function DetailPage({
       await api.deleteImage(id, imageToDelete.id);
       setImageToDelete(null);
       load();
+      showSuccessToast("사진을 삭제했습니다.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "사진을 삭제하지 못했습니다.");
     } finally {
@@ -1672,6 +2066,7 @@ function DetailPage({
             }
           : current,
       );
+      showSuccessToast("사진 분류를 수정했습니다.");
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -1745,20 +2140,20 @@ function DetailPage({
             <h3 className="font-semibold text-[#294534]">현장 정보</h3>
             <div className="mt-5 grid gap-y-6 text-sm sm:grid-cols-2">
               <div>
-                <p className="label">상태</p>
+                <p className="label !text-[#7a8580]">상태</p>
                 <Badge status={project.status} />
               </div>
               <div>
-                <p className="label">면적</p>
-                <p className="value-text">
+                <p className="label !text-[#7a8580]">면적</p>
+                <p className="value-text !text-[#10271d]">
                   {project.area_pyeong
                     ? `${Math.round(Number(project.area_pyeong))}평`
                     : "미등록"}
                 </p>
               </div>
               <div>
-                <p className="label">공사 기간</p>
-                <p className="value-text">
+                <p className="label !text-[#7a8580]">공사 기간</p>
+                <p className="value-text !text-[#10271d]">
                   {fullDate(project.planned_start_date)} ~{" "}
                   {fullDate(
                     project.actual_end_date || project.planned_end_date,
@@ -1766,19 +2161,19 @@ function DetailPage({
                 </p>
               </div>
               <div>
-                <p className="label">주거 유형</p>
-                <p className="value-text">{project.housing_type || "미등록"}</p>
+                <p className="label !text-[#7a8580]">주거 유형</p>
+                <p className="value-text !text-[#10271d]">{project.housing_type || "미등록"}</p>
               </div>
             </div>
             <div className="mt-7 border-t border-[#edf0ec] pt-5">
-              <p className="label">공사 범위</p>
-              <p className="value-copy whitespace-pre-wrap">
+              <p className="label !text-[#7a8580]">공사 범위</p>
+              <p className="value-copy whitespace-pre-wrap !text-[#18372b]">
                 {project.work_scope || "등록된 공사 범위가 없습니다."}
               </p>
             </div>
             <div className="mt-5 border-t border-[#edf0ec] pt-5">
-              <p className="label">내부 메모</p>
-              <p className="value-copy whitespace-pre-wrap">
+              <p className="label !text-[#7a8580]">내부 메모</p>
+              <p className="value-copy whitespace-pre-wrap !text-[#18372b]">
                 {project.internal_memo || "등록된 내부 메모가 없습니다."}
               </p>
             </div>
@@ -1935,6 +2330,11 @@ function DetailPage({
                                 is_public: !image.is_public,
                               });
                               load();
+                              showSuccessToast(
+                                image.is_public
+                                  ? "사진을 비공개로 변경했습니다."
+                                  : "사진을 공개했습니다.",
+                              );
                             }}
                           >
                             {image.is_public ? "공개" : "비공개"}
@@ -1947,6 +2347,7 @@ function DetailPage({
                                   is_cover: true,
                                 });
                                 load();
+                                showSuccessToast("대표 사진으로 지정했습니다.");
                               }}
                             >
                               대표 지정
@@ -2091,9 +2492,6 @@ function DetailPage({
                             <p className="text-[15px] font-bold text-[#294534]">
                               {cost.name}
                             </p>
-                            <span className="rounded-full border border-black/5 bg-white/80 px-2 py-0.5 text-[11px] font-semibold text-[#66736b]">
-                              계약 견적
-                            </span>
                           </div>
                           {(cost.specification || cost.unit) && (
                             <p className="mt-1 text-xs text-[#7a8780]">
@@ -2176,6 +2574,7 @@ function DetailPage({
                               onClick={async () => {
                                 await api.deletePayment(id, payment.id);
                                 setPayments(await api.payments(id));
+                                showSuccessToast("입금 내역을 삭제했습니다.");
                               }}
                             >
                               <Trash2 size={13} /> 삭제
@@ -2331,10 +2730,12 @@ function DetailPage({
 
 function MapPage({ onOpen }: { onOpen: (id: string) => void }) {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const [mappedProjects, setMappedProjects] = useState<ProjectListItem[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [mapError, setMapError] = useState("");
   useEffect(() => {
     setLoading(true);
     setError("");
@@ -2351,14 +2752,44 @@ function MapPage({ onOpen }: { onOpen: (id: string) => void }) {
       })
       .finally(() => setLoading(false));
   }, [page]);
-  const mapped = projects.filter(
-    (project) => project.latitude != null && project.longitude != null,
-  );
+  useEffect(() => {
+    let active = true;
+    const loadAllMappedProjects = async () => {
+      setMapError("");
+      try {
+        const firstPage = await api.projects("?page=1&page_size=100");
+        const pageCount = Math.ceil(firstPage.total / firstPage.page_size);
+        const remainingPages = await Promise.all(
+          Array.from({ length: Math.max(pageCount - 1, 0) }, (_, index) =>
+            api.projects(`?page=${index + 2}&page_size=100`),
+          ),
+        );
+        if (!active) return;
+        setMappedProjects(
+          [firstPage, ...remainingPages]
+            .flatMap((result) => result.items)
+            .filter(
+              (project) =>
+                project.latitude != null && project.longitude != null,
+            ),
+        );
+      } catch {
+        if (active) {
+          setMappedProjects([]);
+          setMapError("전체 현장의 지도 정보를 불러오지 못했습니다.");
+        }
+      }
+    };
+    void loadAllMappedProjects();
+    return () => {
+      active = false;
+    };
+  }, []);
   return (
     <div className="grid gap-5 p-5 sm:p-8 lg:grid-cols-[1fr_320px]">
       <NaverMap
         className="min-h-[420px] overflow-hidden rounded-[24px] border border-[#e2e8e2] bg-[#edf2ed] sm:min-h-[560px]"
-        markers={mapped.map((project) => ({
+        markers={mappedProjects.map((project) => ({
           id: project.id,
           latitude: Number(project.latitude),
           longitude: Number(project.longitude),
@@ -2366,17 +2797,17 @@ function MapPage({ onOpen }: { onOpen: (id: string) => void }) {
           address: project.address,
         }))}
       />
-      <section className="panel overflow-hidden">
-        <div className="border-b border-[#edf0ec] p-5">
+      <section className="panel overflow-hidden border-2 !border-[#afc0b3] shadow-[0_10px_28px_rgba(24,55,43,.14)]">
+        <div className="border-b-2 border-[#bccac0] p-5">
           <h2 className="font-semibold text-[#294534]">지도에 표시된 현장</h2>
-          <p className="mt-1 text-xs text-[#8a968e]">
-            현재 페이지 좌표 등록 {mapped.length}곳 · 전체 {total}곳
-          </p>
+          {mapError && (
+            <p className="mt-1 text-xs text-rose-600">{mapError}</p>
+          )}
         </div>
         {error ? (
           <p className="p-5 text-sm text-[#a14e4e]">{error}</p>
         ) : (
-          <div className="divide-y divide-[#edf0ec]">
+          <div className="divide-y-2 divide-[#bccac0]">
             {projects.map((project) => (
               <button
                 key={project.id}
@@ -2398,7 +2829,7 @@ function MapPage({ onOpen }: { onOpen: (id: string) => void }) {
           </div>
         )}
         {!error && (
-          <div className="border-t border-[#edf0ec] px-2">
+          <div className="border-t-2 border-[#bccac0] px-2">
             <Pagination
               page={page}
               pageSize={6}
@@ -2522,6 +2953,21 @@ function AdminApp() {
     setSelectedProjectTab("photos");
     setFormProject(undefined);
     history.pushState({}, "", `${adminPath("detail", projectId)}?tab=photos`);
+  };
+  const openInquiry = (inquiryId: string) => {
+    setPage("estimates");
+    setSelectedId(null);
+    setSelectedProjectTab(undefined);
+    setSelectedInquiryId(inquiryId);
+    setSelectedEstimateId(undefined);
+    setStartNewEstimateVersion(false);
+    setEstimateApplyProjectId(undefined);
+    setFormProject(undefined);
+    history.pushState(
+      {},
+      "",
+      `/admin/estimates?inquiry=${encodeURIComponent(inquiryId)}`,
+    );
   };
   const openEstimate = (
     inquiryId: string,
@@ -2678,7 +3124,8 @@ function AdminApp() {
       <DashboardPage
         data={dashboard}
         onProjects={() => navigateAdmin("projects")}
-        onOpen={(id) => navigateAdmin("detail", id)}
+        onOpenProject={(id) => navigateAdmin("detail", id)}
+        onOpenInquiry={openInquiry}
       />
     );
   }

@@ -16,6 +16,7 @@ import PhotoClassificationEditor from "./PhotoClassificationEditor";
 import PhotoViewerModal from "./PhotoViewerModal";
 import Pagination from "./Pagination";
 import type { AdminImage, AdminImageList, ProjectListItem } from "./types";
+import { showSuccessToast } from "./Toast";
 
 const classificationPresets = [
   "거실",
@@ -250,6 +251,7 @@ export default function PhotoLibrary({
     try {
       await api.updateImage(image.project_id, image.id, values);
       setRefreshKey((current) => current + 1);
+      showSuccessToast("사진 정보를 수정했습니다.");
     } catch (reason) {
       setError(
         reason instanceof Error

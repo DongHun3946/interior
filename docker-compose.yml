@@ -26,6 +26,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-local-development-secret-change-me}
       ADMIN_LOGIN_ID: ${ADMIN_LOGIN_ID:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin1234!}
+      MANAGEMENT_OVERVIEW_PASSWORD: ${MANAGEMENT_OVERVIEW_PASSWORD:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       MEDIA_DIR: /app/media
       NAVER_MAPS_CLIENT_ID: ${NAVER_MAPS_CLIENT_ID:-}
@@ -44,6 +45,7 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
         VITE_NAVER_MAP_KEY_ID: ${NAVER_MAPS_CLIENT_ID:-}
+        VITE_ENABLE_SIMULATION: ${VITE_ENABLE_SIMULATION:-false}
     ports:
       - "5173:80"
     depends_on:

@@ -1954,6 +1954,13 @@ export default function EstimateInquiriesPage({
     setConsultationDateTo("");
     setPage(1);
   };
+  const filterByStatusSummary = (nextStatus: InquiryStatus) => {
+    setQuery("");
+    setStatus(nextStatus);
+    setConsultationDateFrom("");
+    setConsultationDateTo("");
+    setPage(1);
+  };
   const open = async (id: string) => {
     setLoading(true);
     try {
@@ -2023,29 +2030,43 @@ export default function EstimateInquiriesPage({
                 value: stats.status_counts.NEW || 0,
                 icon: UserRoundPlus,
                 tone: "bg-blue-50 text-blue-700",
+                statusValue: "NEW",
               },
               {
                 label: "상담 예약",
                 value: stats.status_counts.CONSULTATION_SCHEDULED || 0,
                 icon: CalendarClock,
                 tone: "bg-violet-50 text-violet-700",
+                statusValue: "CONSULTATION_SCHEDULED",
               },
               {
                 label: "상담 완료",
                 value: stats.status_counts.CONSULTATION_COMPLETED || 0,
                 icon: Check,
                 tone: "bg-teal-50 text-teal-700",
+                statusValue: "CONSULTATION_COMPLETED",
               },
               {
                 label: "계약 완료",
                 value: stats.status_counts.CONTRACTED || 0,
                 icon: CheckCircle2,
                 tone: "bg-emerald-50 text-emerald-700",
+                statusValue: "CONTRACTED",
               },
-            ].map(({ label, value, icon: Icon, tone }) => (
-              <div
-                className="panel flex min-h-16 items-center gap-3 px-3.5 py-2.5"
+            ].map(({ label, value, icon: Icon, tone, statusValue }) => (
+              <button
+                type="button"
+                className={`panel flex min-h-16 items-center gap-3 px-3.5 py-2.5 text-left transition ${
+                  status === statusValue
+                    ? "border-[#70a17d] ring-2 ring-[#d9e9dd]"
+                    : "hover:-translate-y-0.5 hover:border-[#b8cbbd] hover:shadow-md"
+                }`}
                 key={label}
+                onClick={() =>
+                  filterByStatusSummary(statusValue as InquiryStatus)
+                }
+                aria-pressed={status === statusValue}
+                title={`${label} 상태만 조회`}
               >
                 <div
                   className={`flex size-8 shrink-0 items-center justify-center rounded-md ${tone}`}
@@ -2060,7 +2081,7 @@ export default function EstimateInquiriesPage({
                     {value}건
                   </p>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}

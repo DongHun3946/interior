@@ -19,11 +19,13 @@ import {
   ChevronRight,
   ClipboardList,
   Clock3,
+  FileText,
   FilePlus2,
   FolderKanban,
   House,
   ImageIcon,
   LayoutDashboard,
+  LockKeyhole,
   LogOut,
   MapPin,
   Maximize2,
@@ -33,8 +35,10 @@ import {
   Plus,
   RotateCcw,
   Search,
+  ShieldCheck,
   Trash2,
   Upload,
+  WalletCards,
   X,
 } from "lucide-react";
 import { AUTH_EXPIRED_EVENT, api, mediaUrl } from "./api";
@@ -54,6 +58,7 @@ import type {
   CostSummary,
   GeocodeResult,
   EstimateInquiry,
+  ManagementOverview,
 } from "./types";
 import PublicPortfolio from "./PublicPortfolio";
 import NaverMap from "./NaverMap";
@@ -501,6 +506,7 @@ function Sidebar({
     { id: "projects", label: "전체 현장", icon: FolderKanban },
     { id: "photos", label: "사진 관리", icon: Camera },
     { id: "map", label: "현장 지도", icon: MapPin },
+    { id: "management", label: "경영 현황", icon: LockKeyhole },
   ];
   return (
     <>
@@ -1387,6 +1393,634 @@ function DashboardPage({
         onTodayScheduleCountChange={setTodayScheduleCount}
       />
     </div>
+  );
+}
+
+function ManagementOverviewPage({
+  onOpenProject,
+}: {
+  onOpenProject: (id: string) => void;
+}) {
+  const [overview, setOverview] = useState<ManagementOverview | null>(null);
+  const [password, setPassword] = useState("");
+  const accessPasswordRef = useRef("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [appliedDateFrom, setAppliedDateFrom] = useState("");
+  const [appliedDateTo, setAppliedDateTo] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [projectModalStatus, setProjectModalStatus] = useState<{
+    status: ProjectStatus;
+    label: string;
+  } | null>(null);
+  const [projectModalItems, setProjectModalItems] = useState<ProjectListItem[]>(
+    [],
+  );
+  const [projectModalPage, setProjectModalPage] = useState(1);
+  const [projectModalTotal, setProjectModalTotal] = useState(0);
+  const [projectModalHasMore, setProjectModalHasMore] = useState(false);
+  const [projectModalLoading, setProjectModalLoading] = useState(false);
+  const [projectModalError, setProjectModalError] = useState("");
+  const projectModalScrollRef = useRef<HTMLDivElement>(null);
+  const projectModalSentinelRef = useRef<HTMLDivElement>(null);
+
+  const loadOverview = async (
+    accessPassword: string,
+    nextDateFrom: string,
+    nextDateTo: string,
+  ) => {
+    setError("");
+    setLoading(true);
+    try {
+      const result = await api.managementOverview(
+        accessPassword,
+        nextDateFrom,
+        nextDateTo,
+      );
+      setOverview(result);
+      setAppliedDateFrom(nextDateFrom);
+      setAppliedDateTo(nextDateTo);
+      return true;
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "경영 현황을 확인하지 못했습니다.",
+      );
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const unlock = async (event: FormEvent) => {
+    event.preventDefault();
+    const accessPassword = password;
+    if (await loadOverview(accessPassword, "", "")) {
+      accessPasswordRef.current = accessPassword;
+      setPassword("");
+    }
+  };
+
+  const applyPeriod = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!accessPasswordRef.current) return;
+    await loadOverview(accessPasswordRef.current, dateFrom, dateTo);
+  };
+
+  const resetPeriod = async () => {
+    if (!accessPasswordRef.current) return;
+    setDateFrom("");
+    setDateTo("");
+    await loadOverview(accessPasswordRef.current, "", "");
+  };
+
+  const openProjectStatus = (status: ProjectStatus, label: string) => {
+    setProjectModalStatus({ status, label });
+    setProjectModalItems([]);
+    setProjectModalPage(1);
+    setProjectModalTotal(0);
+    setProjectModalHasMore(true);
+    setProjectModalError("");
+  };
+
+  useEffect(() => {
+    if (!projectModalStatus) return;
+    let active = true;
+    const params = new URLSearchParams({
+      page: String(projectModalPage),
+      page_size: "12",
+      status: projectModalStatus.status,
+    });
+    if (appliedDateFrom)
+      params.set("planned_start_date_from", appliedDateFrom);
+    if (appliedDateTo)
+      params.set("planned_start_date_to", appliedDateTo);
+
+    setProjectModalLoading(true);
+    setProjectModalError("");
+    api
+      .projects(`?${params.toString()}`)
+      .then((result) => {
+        if (!active) return;
+        setProjectModalItems((current) => {
+          const nextItems = projectModalPage === 1 ? [] : current;
+          const knownIds = new Set(nextItems.map((item) => item.id));
+          return [
+            ...nextItems,
+            ...result.items.filter((item) => !knownIds.has(item.id)),
+          ];
+        });
+        setProjectModalTotal(result.total);
+        setProjectModalHasMore(
+          result.page * result.page_size < result.total,
+        );
+      })
+      .catch((caught) => {
+        if (!active) return;
+        setProjectModalHasMore(false);
+        setProjectModalError(
+          caught instanceof Error
+            ? caught.message
+            : "현장 목록을 불러오지 못했습니다.",
+        );
+      })
+      .finally(() => {
+        if (active) setProjectModalLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    appliedDateFrom,
+    appliedDateTo,
+    projectModalPage,
+    projectModalStatus?.status,
+  ]);
+
+  useEffect(() => {
+    const sentinel = projectModalSentinelRef.current;
+    if (
+      !projectModalStatus ||
+      !sentinel ||
+      projectModalLoading ||
+      !projectModalHasMore
+    )
+      return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setProjectModalPage((current) => current + 1);
+      },
+      {
+        root: projectModalScrollRef.current,
+        rootMargin: "120px 0px",
+      },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [
+    projectModalHasMore,
+    projectModalItems.length,
+    projectModalLoading,
+    projectModalStatus,
+  ]);
+
+  if (!overview)
+    return (
+      <div className="flex min-h-[calc(100dvh-89px)] items-center justify-center p-5 sm:p-8">
+        <section className="panel w-full max-w-md p-6 sm:p-8">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-[#e8f1e9] text-[#315f40]">
+            <LockKeyhole size={22} />
+          </div>
+          <h2 className="serif mt-5 text-2xl text-[#1d382a]">경영 현황 확인</h2>
+          <p className="mt-2 text-sm leading-6 text-[#718078]">
+            계약 및 입금 정보가 포함된 보호 메뉴입니다. 경영 현황 전용
+            2차 비밀번호를 입력해 주세요.
+          </p>
+          <form className="mt-6" onSubmit={unlock}>
+            <label className="label" htmlFor="management-password">
+              2차 비밀번호
+            </label>
+            <input
+              id="management-password"
+              className="field"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoFocus
+              required
+            />
+            {error && (
+              <p className="mt-3 rounded-xl bg-[#fff0ef] px-3.5 py-2.5 text-xs text-[#a14e4e]">
+                {error}
+              </p>
+            )}
+            <button
+              type="submit"
+              className="btn-primary mt-5 w-full py-3"
+              disabled={loading || !password}
+            >
+              <ShieldCheck size={17} />
+              {loading ? "확인 중…" : "경영 현황 열기"}
+            </button>
+          </form>
+          <p className="mt-4 text-center text-[11px] text-[#93a097]">
+            다른 메뉴로 이동하면 경영 현황은 다시 잠깁니다.
+          </p>
+        </section>
+      </div>
+    );
+
+  const projectStatuses = [
+    {
+      label: "공사 예정",
+      statusValue: "PLANNING" as ProjectStatus,
+      value: overview.planning_projects,
+      icon: CalendarDays,
+      tone: "bg-[#fff3df] text-[#9a651f]",
+      bar: "bg-[#d5a044]",
+    },
+    {
+      label: "공사 중",
+      statusValue: "IN_PROGRESS" as ProjectStatus,
+      value: overview.in_progress_projects,
+      icon: Clock3,
+      tone: "bg-[#eaf1fb] text-[#386fae]",
+      bar: "bg-[#4387d6]",
+    },
+    {
+      label: "공사 완료",
+      statusValue: "COMPLETED" as ProjectStatus,
+      value: overview.completed_projects,
+      icon: CheckCircle2,
+      tone: "bg-[#eaf6ef] text-[#31734d]",
+      bar: "bg-[#3b9b60]",
+    },
+  ];
+  const trackedProjectCount = projectStatuses.reduce(
+    (sum, item) => sum + item.value,
+    0,
+  );
+  const projectShares = projectStatuses.map((item) =>
+    trackedProjectCount ? (item.value / trackedProjectCount) * 100 : 0,
+  );
+  const completedRate = trackedProjectCount
+    ? (overview.completed_projects / trackedProjectCount) * 100
+    : 0;
+  const planningEnd = projectShares[0];
+  const inProgressEnd = planningEnd + projectShares[1];
+  const projectChartBackground = trackedProjectCount
+    ? `conic-gradient(#d5a044 0% ${planningEnd}%, #4387d6 ${planningEnd}% ${inProgressEnd}%, #3b9b60 ${inProgressEnd}% 100%)`
+    : "#edf1ee";
+
+  const outstandingAmount = Math.max(
+    overview.total_contract - overview.total_paid,
+    0,
+  );
+  const paymentRate = overview.total_contract
+    ? (overview.total_paid / overview.total_contract) * 100
+    : 0;
+  const paymentChartRate = Math.min(100, Math.max(0, paymentRate));
+  const financeItems = [
+    {
+      label: "총 계약 금액",
+      value: money(overview.total_contract),
+      description: "현재 현장에 적용된 계약 견적 합계",
+      icon: FileText,
+      tone: "bg-[#eef3ff] text-[#4169a1]",
+    },
+    {
+      label: "입금된 금액",
+      value: money(overview.total_paid),
+      description: "등록된 전체 입금 내역 합계",
+      icon: WalletCards,
+      tone: "bg-[#eaf6ef] text-[#31734d]",
+    },
+    {
+      label: "미수 금액",
+      value: money(outstandingAmount),
+      description: "계약 금액에서 입금액을 제외한 금액",
+      icon: Clock3,
+      tone: "bg-[#fff3df] text-[#9a651f]",
+    },
+  ];
+  const appliedPeriodLabel = appliedDateFrom
+    ? appliedDateTo
+      ? `${appliedDateFrom} ~ ${appliedDateTo}`
+      : `${appliedDateFrom} 이후`
+    : appliedDateTo
+      ? `${appliedDateTo} 이전`
+      : "전체 기간";
+
+  return (
+    <>
+      {projectModalStatus && (
+        <Modal
+          title={`${projectModalStatus.label} 현장`}
+          description={`${appliedPeriodLabel} · 총 ${projectModalTotal}곳`}
+          onClose={() => setProjectModalStatus(null)}
+          maxWidthClass="max-w-2xl"
+        >
+          <div
+            ref={projectModalScrollRef}
+            className="max-h-[min(65dvh,620px)] overflow-y-auto px-5 pb-5"
+          >
+            {projectModalItems.length > 0 && (
+              <div className="space-y-2">
+                {projectModalItems.map((project) => (
+                  <button
+                    type="button"
+                    key={project.id}
+                    className="flex w-full items-center gap-3 rounded-xl border border-[#e4eae5] bg-white p-3 text-left transition hover:border-[#bfd0c2] hover:bg-[#f8faf8] sm:p-4"
+                    onClick={() => {
+                      setProjectModalStatus(null);
+                      onOpenProject(project.id);
+                    }}
+                  >
+                    <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#edf2ed] text-[#7f9185]">
+                      {project.cover_image ? (
+                        <img
+                          src={mediaUrl(project.cover_image.thumbnail_url)}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <House size={18} />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <strong className="truncate text-sm text-[#294534]">
+                          {project.title}
+                        </strong>
+                        <Badge status={project.status} />
+                      </span>
+                      <span className="mt-1 block truncate text-xs text-[#7b8980]">
+                        {projectTypeLabels[project.project_type]} · {project.address}
+                      </span>
+                      <span className="mt-1 flex items-center gap-1 text-[11px] text-[#95a098]">
+                        <CalendarDays size={12} />
+                        {fullDate(project.planned_start_date)} ~{" "}
+                        {fullDate(project.planned_end_date)}
+                      </span>
+                    </span>
+                    <ChevronRight size={17} className="shrink-0 text-[#92a097]" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {!projectModalLoading &&
+              !projectModalError &&
+              projectModalItems.length === 0 && (
+                <div className="rounded-xl border border-dashed border-[#d8e0da] bg-[#f8faf8] px-5 py-10 text-center text-sm text-[#7d8a82]">
+                  해당 조건의 현장이 없습니다.
+                </div>
+              )}
+            {projectModalError && (
+              <p className="rounded-xl bg-[#fff0ef] px-4 py-3 text-sm text-[#a14e4e]">
+                {projectModalError}
+              </p>
+            )}
+            {projectModalLoading && (
+              <div className="py-5 text-center text-xs font-semibold text-[#839087]">
+                {projectModalItems.length
+                  ? "다음 현장을 불러오는 중…"
+                  : "현장 목록을 불러오는 중…"}
+              </div>
+            )}
+            <div ref={projectModalSentinelRef} className="h-px" />
+          </div>
+        </Modal>
+      )}
+      <div className="space-y-5 p-5 sm:p-8">
+      <form
+        className="panel flex flex-col gap-3 p-4 lg:flex-row lg:items-end"
+        onSubmit={applyPeriod}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-bold text-[#294534]">조회 기간</p>
+            <span className="rounded-full bg-[#edf4ee] px-2.5 py-1 text-[10px] font-bold text-[#4f6c59]">
+              {appliedPeriodLabel}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] leading-5 text-[#87948c]">
+            공사 현황은 시작 예정일, 계약은 견적서 작성일, 입금은 입금일
+            기준입니다.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            className="field sm:w-40"
+            type="date"
+            aria-label="경영 현황 조회 시작일"
+            onClick={showDatePicker}
+            max={dateTo || undefined}
+            value={dateFrom}
+            onChange={(event) => {
+              const nextDate = event.target.value;
+              setDateFrom(nextDate);
+              if (dateTo && dateTo < nextDate) setDateTo("");
+            }}
+          />
+          <span className="hidden text-sm text-[#8a968e] sm:inline">~</span>
+          <input
+            className="field sm:w-40"
+            type="date"
+            aria-label="경영 현황 조회 종료일"
+            onClick={showDatePicker}
+            min={dateFrom || undefined}
+            value={dateTo}
+            onChange={(event) => setDateTo(event.target.value)}
+          />
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="btn-primary flex-1 whitespace-nowrap sm:flex-none"
+              disabled={loading}
+            >
+              <Search size={15} /> {loading ? "조회 중…" : "조회"}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary flex-1 whitespace-nowrap sm:flex-none"
+              onClick={resetPeriod}
+              disabled={loading || (!dateFrom && !dateTo && !appliedDateFrom && !appliedDateTo)}
+            >
+              <RotateCcw size={15} /> 초기화
+            </button>
+          </div>
+        </div>
+        {error && (
+          <p className="rounded-xl bg-[#fff0ef] px-3.5 py-2.5 text-xs text-[#a14e4e] lg:max-w-64">
+            {error}
+          </p>
+        )}
+      </form>
+      <section className="panel p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4 border-b border-[#edf1ed] pb-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.14em] text-[#789081]">
+              Construction
+            </p>
+            <h2 className="mt-1 text-lg font-bold text-[#213c2e]">
+              공사 진행 현황
+            </h2>
+            <p className="mt-1 text-xs text-[#87958c]">
+              공사 상태를 기준으로 집계한 전체 진행 분포입니다.
+            </p>
+          </div>
+          <span className="rounded-full bg-[#eef4ef] px-3 py-1.5 text-xs font-bold text-[#496657]">
+            총 {trackedProjectCount}곳
+          </span>
+        </div>
+
+        <div className="mt-6 grid items-center gap-7 lg:grid-cols-[190px_minmax(0,1fr)]">
+          <div className="flex justify-center">
+            <div
+              className="relative flex size-40 items-center justify-center rounded-full sm:size-44"
+              style={{ background: projectChartBackground }}
+              role="img"
+              aria-label={`공사 완료 비율 ${Math.round(completedRate)}%`}
+            >
+              <div className="absolute inset-[18px] rounded-full bg-white shadow-[inset_0_0_0_1px_#edf1ed]" />
+              <div className="relative text-center">
+                <p className="text-3xl font-bold tracking-tight text-[#18372b]">
+                  {Math.round(completedRate)}%
+                </p>
+                <p className="mt-1 text-[11px] font-semibold text-[#7d8b82]">
+                  완료 비율
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            {projectStatuses.map(
+              ({ label, statusValue, value, bar }, index) => {
+              const share = projectShares[index];
+              return (
+                <button
+                  type="button"
+                  className="block w-full rounded-xl p-2 text-left transition hover:bg-[#f6f9f6]"
+                  key={label}
+                  onClick={() => openProjectStatus(statusValue, label)}
+                >
+                  <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                    <span className="font-semibold text-[#4c6154]">{label}</span>
+                    <span className="font-bold text-[#213c2e]">
+                      {value}곳
+                      <span className="ml-1.5 text-xs font-medium text-[#8b978f]">
+                        {Math.round(share)}%
+                      </span>
+                    </span>
+                  </div>
+                  <div className="h-2.5 overflow-hidden rounded-full bg-[#edf1ee]">
+                    <div
+                      className={`h-full rounded-full transition-[width] duration-500 ${bar}`}
+                      style={{ width: `${share}%` }}
+                    />
+                  </div>
+                </button>
+              );
+              },
+            )}
+          </div>
+        </div>
+
+        <div className="mt-7 grid gap-3 border-t border-[#edf1ed] pt-5 sm:grid-cols-3">
+          {projectStatuses.map(
+            ({ label, statusValue, value, icon: Icon, tone }) => (
+            <button
+              type="button"
+              className="group flex items-center gap-3 rounded-xl bg-[#f8faf8] p-3.5 text-left transition hover:bg-[#eef4ef]"
+              key={label}
+              onClick={() => openProjectStatus(statusValue, label)}
+            >
+              <span
+                className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${tone}`}
+              >
+                <Icon size={17} />
+              </span>
+              <div>
+                <p className="text-[11px] font-semibold text-[#7c8981]">
+                  {label}
+                </p>
+                <p className="mt-0.5 text-lg font-bold leading-none text-[#18372b]">
+                  {value}곳
+                </p>
+              </div>
+              <ChevronRight
+                size={16}
+                className="ml-auto text-[#9aa69e] transition group-hover:translate-x-0.5 group-hover:text-[#55705e]"
+              />
+            </button>
+            ),
+          )}
+        </div>
+      </section>
+
+      <section className="panel p-5 sm:p-6">
+        <div className="border-b border-[#edf1ed] pb-4">
+          <p className="text-xs font-bold uppercase tracking-[.14em] text-[#789081]">
+            Finance
+          </p>
+          <h2 className="mt-1 text-lg font-bold text-[#213c2e]">금액 현황</h2>
+          <p className="mt-1 text-xs text-[#87958c]">
+            적용된 계약 금액과 실제 입금 내역을 기준으로 계산합니다.
+          </p>
+        </div>
+
+        <div className="mt-6 grid items-center gap-7 lg:grid-cols-[190px_minmax(0,1fr)]">
+          <div className="flex justify-center">
+            <div
+              className="relative flex size-40 items-center justify-center rounded-full sm:size-44"
+              style={{
+                background: `conic-gradient(#3b7f55 0% ${paymentChartRate}%, #e6ece7 ${paymentChartRate}% 100%)`,
+              }}
+              role="img"
+              aria-label={`계약 금액 대비 입금률 ${Math.round(paymentRate)}%`}
+            >
+              <div className="absolute inset-[18px] rounded-full bg-white shadow-[inset_0_0_0_1px_#edf1ed]" />
+              <div className="relative text-center">
+                <p className="text-3xl font-bold tracking-tight text-[#18372b]">
+                  {Math.round(paymentRate)}%
+                </p>
+                <p className="mt-1 text-[11px] font-semibold text-[#7d8b82]">
+                  입금률
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {financeItems.map(
+                ({ label, value, description, icon: Icon, tone }) => (
+                  <div
+                    className="rounded-xl border border-[#e5ebe6] bg-[#fbfcfb] p-4"
+                    key={label}
+                  >
+                    <span
+                      className={`flex size-9 items-center justify-center rounded-lg ${tone}`}
+                    >
+                      <Icon size={17} />
+                    </span>
+                    <p className="mt-4 text-xs font-semibold text-[#718078]">
+                      {label}
+                    </p>
+                    <p className="mt-1 break-keep text-xl font-bold tracking-tight text-[#18372b]">
+                      {value}
+                    </p>
+                    <p className="mt-2 text-[11px] leading-5 text-[#929e96]">
+                      {description}
+                    </p>
+                  </div>
+                ),
+              )}
+            </div>
+            <div className="mt-5">
+              <div className="mb-2 flex items-center justify-between text-xs">
+                <span className="font-semibold text-[#617269]">입금 진행률</span>
+                <span className="font-bold text-[#315f40]">
+                  {money(overview.total_paid)} / {money(overview.total_contract)}
+                </span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-[#e6ece7]">
+                <div
+                  className="h-full rounded-full bg-[#3b7f55] transition-[width] duration-500"
+                  style={{ width: `${paymentChartRate}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      </div>
+    </>
   );
 }
 
@@ -3167,6 +3801,8 @@ function adminRoute(pathname: string, search = ""): AdminRoute {
     return { page: "photos", projectId: null };
   if (/^\/admin\/map\/?$/.test(pathname))
     return { page: "map", projectId: null };
+  if (/^\/admin\/management\/?$/.test(pathname))
+    return { page: "management", projectId: null };
   if (/^\/admin\/settings\/?$/.test(pathname))
     return { page: "settings", projectId: null };
   return { page: "dashboard", projectId: null };
@@ -3179,6 +3815,7 @@ function adminPath(page: string, projectId?: string | null) {
   if (page === "estimates") return "/admin/estimates";
   if (page === "photos") return "/admin/photos";
   if (page === "map") return "/admin/map";
+  if (page === "management") return "/admin/management";
   if (page === "settings") return "/admin/settings";
   return "/admin";
 }
@@ -3385,6 +4022,13 @@ function AdminApp() {
   } else if (page === "map") {
     title = "현장 지도";
     content = <MapPage onOpen={(id) => navigateAdmin("detail", id)} />;
+  } else if (page === "management") {
+    title = "경영 현황";
+    content = (
+      <ManagementOverviewPage
+        onOpenProject={(id) => navigateAdmin("detail", id)}
+      />
+    );
   } else if (page === "settings") {
     title = "업체 설정";
     content = <CompanySettingsPage />;

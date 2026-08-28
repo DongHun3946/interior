@@ -190,6 +190,15 @@ export interface Dashboard {
   total_extra: number;
   total_paid: number;
 }
+
+export interface ManagementOverview {
+  total_contract: number;
+  total_paid: number;
+  planning_projects: number;
+  in_progress_projects: number;
+  completed_projects: number;
+}
+
 export interface User {
   id: string;
   login_id: string;

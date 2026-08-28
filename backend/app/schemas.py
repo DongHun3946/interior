@@ -314,6 +314,26 @@ class DashboardSummary(BaseModel):
     total_paid: int
 
 
+class ManagementOverviewAccess(BaseModel):
+    password: str = Field(min_length=1, max_length=200)
+    date_from: date | None = None
+    date_to: date | None = None
+
+    @model_validator(mode="after")
+    def validate_date_range(self):
+        if self.date_from and self.date_to and self.date_to < self.date_from:
+            raise ValueError("조회 종료일은 시작일보다 빠를 수 없습니다.")
+        return self
+
+
+class ManagementOverview(BaseModel):
+    total_contract: int
+    total_paid: int
+    planning_projects: int
+    in_progress_projects: int
+    completed_projects: int
+
+
 class EstimateLineCreate(BaseModel):
     category: CostCategory = CostCategory.OTHER
     name: str = Field(min_length=1, max_length=200)

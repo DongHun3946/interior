@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     admin_login_id: str = "admin"
     admin_password: str = "admin1234!"
+    management_overview_password: str = ""
     media_dir: str = "media"
     max_upload_size: int = 15 * 1024 * 1024
     max_scan_upload_size: int = 500 * 1024 * 1024

@@ -20,6 +20,7 @@ import type {
   InquiryStats,
   AIJob,
   MaterialType,
+  ManagementOverview,
   Simulation,
   SimulationVersion,
   SpaceScan,
@@ -109,6 +110,19 @@ export const api = {
     }),
   me: () => request<User>("/api/v1/auth/me"),
   dashboard: () => request<Dashboard>("/api/v1/dashboard/summary"),
+  managementOverview: (
+    password: string,
+    dateFrom = "",
+    dateTo = "",
+  ) =>
+    request<ManagementOverview>("/api/v1/management-overview", {
+      method: "POST",
+      body: JSON.stringify({
+        password,
+        date_from: dateFrom || null,
+        date_to: dateTo || null,
+      }),
+    }),
   companySettings: () => request<CompanySettings>("/api/v1/company-settings"),
   updateCompanySettings: (body: CompanySettings) =>
     request<CompanySettings>("/api/v1/company-settings", {

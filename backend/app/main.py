@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
+import secrets
 from uuid import UUID
 
 import httpx
@@ -15,7 +16,7 @@ from sqlalchemy.orm import Session, joinedload
 from .core.config import get_settings
 from .db import Base, engine, get_db
 from .models import CompanySettings, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, Project, ProjectContractEstimateHistory, ProjectImage, ProjectStatus, ProjectStatusHistory, ProjectType, User, UserRole
-from .schemas import AdminImageList, AdminImageOut, CompanySettingsOut, CompanySettingsUpdate, ContractEstimateApply, ContractEstimateHistoryOut, ContractEstimateLineOut, ContractEstimateReference, CostSummary, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
+from .schemas import AdminImageList, AdminImageOut, CompanySettingsOut, CompanySettingsUpdate, ContractEstimateApply, ContractEstimateHistoryOut, ContractEstimateLineOut, ContractEstimateReference, CostSummary, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, ManagementOverview, ManagementOverviewAccess, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
 from .security import create_access_token, get_current_user, hash_password, verify_password
 from .schema_compat import ensure_schema_compatibility
 from .storage import save_upload
@@ -259,13 +260,124 @@ def dashboard(_: User = Depends(require_admin), db: Session = Depends(get_db)):
     return DashboardSummary(total=sum(counts.values()), planning=counts["planning"], in_progress=counts["in_progress"], completed=counts["completed"], on_hold=counts["on_hold"], cancelled=counts["cancelled"], total_contract=int(total_contract), total_extra=int(total_extra), total_paid=int(total_paid))
 
 
+@app.post("/api/v1/management-overview", response_model=ManagementOverview)
+def management_overview(
+    payload: ManagementOverviewAccess,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    if not settings.management_overview_password:
+        raise HTTPException(
+            status_code=503,
+            detail="경영 현황 2차 비밀번호가 설정되지 않았습니다.",
+        )
+    if not secrets.compare_digest(
+        payload.password,
+        settings.management_overview_password,
+    ):
+        raise HTTPException(status_code=400, detail="비밀번호가 일치하지 않습니다.")
+
+    project_period_conditions = [Project.deleted_at.is_(None)]
+    contract_period_conditions = [Project.deleted_at.is_(None)]
+    payment_period_conditions = [
+        Payment.deleted_at.is_(None),
+        Project.deleted_at.is_(None),
+    ]
+    if payload.date_from:
+        period_start = datetime.combine(payload.date_from, time.min)
+        if db.get_bind().dialect.name == "postgresql":
+            period_start = period_start.replace(tzinfo=KST)
+        project_period_conditions.append(
+            Project.planned_start_date >= payload.date_from
+        )
+        contract_period_conditions.append(
+            EstimateDocument.created_at >= period_start
+        )
+        payment_period_conditions.append(Payment.paid_at >= period_start)
+    if payload.date_to:
+        period_end = datetime.combine(
+            payload.date_to + timedelta(days=1),
+            time.min,
+        )
+        if db.get_bind().dialect.name == "postgresql":
+            period_end = period_end.replace(tzinfo=KST)
+        project_period_conditions.append(Project.planned_start_date <= payload.date_to)
+        contract_period_conditions.append(EstimateDocument.created_at < period_end)
+        payment_period_conditions.append(Payment.paid_at < period_end)
+
+    total_contract = db.scalar(
+        select(func.coalesce(func.sum(EstimateDocument.total_amount), 0))
+        .join(Project, Project.contract_estimate_id == EstimateDocument.id)
+        .where(*contract_period_conditions)
+    ) or 0
+    total_paid = db.scalar(
+        select(func.coalesce(func.sum(Payment.total_amount), 0))
+        .join(Project, Project.id == Payment.project_id)
+        .where(*payment_period_conditions)
+    ) or 0
+    planning_projects = db.scalar(
+        select(func.count(Project.id)).where(
+            Project.status == ProjectStatus.PLANNING,
+            *project_period_conditions,
+        )
+    ) or 0
+    in_progress_projects = db.scalar(
+        select(func.count(Project.id)).where(
+            Project.status == ProjectStatus.IN_PROGRESS,
+            *project_period_conditions,
+        )
+    ) or 0
+    completed_projects = db.scalar(
+        select(func.count(Project.id)).where(
+            Project.status == ProjectStatus.COMPLETED,
+            *project_period_conditions,
+        )
+    ) or 0
+    return ManagementOverview(
+        total_contract=int(total_contract),
+        total_paid=int(total_paid),
+        planning_projects=int(planning_projects),
+        in_progress_projects=int(in_progress_projects),
+        completed_projects=int(completed_projects),
+    )
+
+
 @app.get("/api/v1/projects", response_model=ProjectList)
-def list_projects(page: int = Query(1, ge=1), page_size: int = Query(12, ge=1, le=100), status_filter: ProjectStatus | None = Query(None, alias="status"), project_type: ProjectType | None = None, q: str | None = None, sort_by: str = Query("updated_at", alias="sort", pattern="^(created_at|updated_at)$"), archived: bool = False, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+def list_projects(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(12, ge=1, le=100),
+    status_filter: ProjectStatus | None = Query(None, alias="status"),
+    project_type: ProjectType | None = None,
+    planned_start_date_from: date | None = None,
+    planned_start_date_to: date | None = None,
+    q: str | None = None,
+    sort_by: str = Query(
+        "updated_at",
+        alias="sort",
+        pattern="^(created_at|updated_at)$",
+    ),
+    archived: bool = False,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
     conditions = [Project.deleted_at.is_not(None) if archived else Project.deleted_at.is_(None)]
+    if (
+        planned_start_date_from
+        and planned_start_date_to
+        and planned_start_date_to < planned_start_date_from
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="공사 시작일 조회 종료일은 시작일보다 빠를 수 없습니다.",
+        )
     if status_filter:
         conditions.append(Project.status == status_filter)
     if project_type:
         conditions.append(Project.project_type == project_type)
+    if planned_start_date_from:
+        conditions.append(Project.planned_start_date >= planned_start_date_from)
+    if planned_start_date_to:
+        conditions.append(Project.planned_start_date <= planned_start_date_to)
     if q:
         like = f"%{q}%"
         conditions.append(or_(Project.title.ilike(like), Project.address.ilike(like), Project.customer_name.ilike(like)))

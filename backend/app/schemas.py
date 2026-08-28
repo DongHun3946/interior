@@ -3,9 +3,9 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .models import CostCategory, ImageCategory, InquiryStatus, PaymentMethod, PaymentStage, ProjectStatus, UserRole
+from .models import CostCategory, ImageCategory, InquiryStatus, PaymentMethod, PaymentStage, ProjectStatus, ProjectType, UserRole
 
 
 class UserOut(BaseModel):
@@ -40,6 +40,7 @@ class ProjectBase(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     customer_name: str | None = None
     customer_phone: str | None = None
+    project_type: ProjectType = ProjectType.INTERIOR
     status: ProjectStatus = ProjectStatus.PLANNING
     housing_type: str | None = None
     area_pyeong: Decimal | None = Field(default=None, ge=0)
@@ -56,6 +57,16 @@ class ProjectBase(BaseModel):
     actual_end_date: date | None = None
     is_public: bool = False
 
+    @model_validator(mode="after")
+    def validate_planned_date_range(self):
+        if (
+            self.planned_start_date
+            and self.planned_end_date
+            and self.planned_end_date < self.planned_start_date
+        ):
+            raise ValueError("공사 종료일은 시작일보다 빠를 수 없습니다.")
+        return self
+
 
 class ProjectCreate(ProjectBase):
     pass
@@ -65,6 +76,7 @@ class ProjectUpdate(BaseModel):
     title: str | None = None
     customer_name: str | None = None
     customer_phone: str | None = None
+    project_type: ProjectType = ProjectType.INTERIOR
     status: ProjectStatus | None = None
     housing_type: str | None = None
     area_pyeong: Decimal | None = Field(default=None, ge=0)
@@ -80,6 +92,16 @@ class ProjectUpdate(BaseModel):
     planned_end_date: date | None = None
     actual_end_date: date | None = None
     is_public: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_planned_date_range(self):
+        if (
+            self.planned_start_date
+            and self.planned_end_date
+            and self.planned_end_date < self.planned_start_date
+        ):
+            raise ValueError("공사 종료일은 시작일보다 빠를 수 없습니다.")
+        return self
 
 
 class ImageOut(BaseModel):
@@ -194,6 +216,7 @@ class ProjectListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     title: str
+    project_type: ProjectType
     status: ProjectStatus
     address: str
     latitude: Decimal | None
@@ -405,6 +428,16 @@ class InquiryConvert(BaseModel):
     project_title: str | None = Field(default=None, max_length=200)
     planned_start_date: date | None = None
     planned_end_date: date | None = None
+
+    @model_validator(mode="after")
+    def validate_planned_date_range(self):
+        if (
+            self.planned_start_date
+            and self.planned_end_date
+            and self.planned_end_date < self.planned_start_date
+        ):
+            raise ValueError("공사 종료일은 시작일보다 빠를 수 없습니다.")
+        return self
 
 
 class ContractEstimateApply(BaseModel):

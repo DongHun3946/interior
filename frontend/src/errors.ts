@@ -69,6 +69,7 @@ const fieldNames: Record<string, string> = {
   paid_at: "입금일",
   planned_start_date: "공사 시작일",
   planned_end_date: "공사 종료일",
+  project_type: "공사 구분",
   password: "비밀번호",
   username: "아이디",
   file: "파일",

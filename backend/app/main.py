@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .core.config import get_settings
 from .db import Base, engine, get_db
-from .models import CompanySettings, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, Project, ProjectContractEstimateHistory, ProjectImage, ProjectStatus, ProjectStatusHistory, User, UserRole
+from .models import CompanySettings, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, Project, ProjectContractEstimateHistory, ProjectImage, ProjectStatus, ProjectStatusHistory, ProjectType, User, UserRole
 from .schemas import AdminImageList, AdminImageOut, CompanySettingsOut, CompanySettingsUpdate, ContractEstimateApply, ContractEstimateHistoryOut, ContractEstimateLineOut, ContractEstimateReference, CostSummary, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
 from .security import create_access_token, get_current_user, hash_password, verify_password
 from .schema_compat import ensure_schema_compatibility
@@ -22,6 +22,7 @@ from .storage import save_upload
 from .simulation_routes import router as simulation_router
 
 settings = get_settings()
+KST = timezone(timedelta(hours=9))
 Path(settings.media_dir).mkdir(parents=True, exist_ok=True)
 
 
@@ -259,10 +260,12 @@ def dashboard(_: User = Depends(require_admin), db: Session = Depends(get_db)):
 
 
 @app.get("/api/v1/projects", response_model=ProjectList)
-def list_projects(page: int = Query(1, ge=1), page_size: int = Query(12, ge=1, le=100), status_filter: ProjectStatus | None = Query(None, alias="status"), q: str | None = None, sort_by: str = Query("updated_at", alias="sort", pattern="^(created_at|updated_at)$"), archived: bool = False, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+def list_projects(page: int = Query(1, ge=1), page_size: int = Query(12, ge=1, le=100), status_filter: ProjectStatus | None = Query(None, alias="status"), project_type: ProjectType | None = None, q: str | None = None, sort_by: str = Query("updated_at", alias="sort", pattern="^(created_at|updated_at)$"), archived: bool = False, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     conditions = [Project.deleted_at.is_not(None) if archived else Project.deleted_at.is_(None)]
     if status_filter:
         conditions.append(Project.status == status_filter)
+    if project_type:
+        conditions.append(Project.project_type == project_type)
     if q:
         like = f"%{q}%"
         conditions.append(or_(Project.title.ilike(like), Project.address.ilike(like), Project.customer_name.ilike(like)))
@@ -297,6 +300,10 @@ def get_project(project_id: UUID, _: User = Depends(require_admin), db: Session 
 def update_project(project_id: UUID, payload: ProjectUpdate, user: User = Depends(require_admin), db: Session = Depends(get_db)):
     project = project_or_404(db, project_id)
     changes = payload.model_dump(exclude_unset=True)
+    planned_start_date = changes.get("planned_start_date", project.planned_start_date)
+    planned_end_date = changes.get("planned_end_date", project.planned_end_date)
+    if planned_start_date and planned_end_date and planned_end_date < planned_start_date:
+        raise HTTPException(status_code=422, detail="공사 종료일은 시작일보다 빠를 수 없습니다.")
     old_status = project.status
     for key, value in changes.items():
         setattr(project, key, value)
@@ -657,6 +664,8 @@ def list_estimate_inquiries(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status_filter: InquiryStatus | None = Query(None, alias="status"),
+    consultation_date_from: date | None = None,
+    consultation_date_to: date | None = None,
     q: str | None = None,
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
@@ -664,12 +673,42 @@ def list_estimate_inquiries(
     conditions = [EstimateInquiry.deleted_at.is_(None)]
     if status_filter:
         conditions.append(EstimateInquiry.status == status_filter)
+    if (
+        consultation_date_from
+        and consultation_date_to
+        and consultation_date_to < consultation_date_from
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="상담 일정 종료일은 시작일보다 빠를 수 없습니다.",
+        )
+    if consultation_date_from:
+        consultation_start = datetime.combine(
+            consultation_date_from,
+            time.min,
+        )
+        if db.get_bind().dialect.name == "postgresql":
+            consultation_start = consultation_start.replace(tzinfo=KST)
+        conditions.append(
+            EstimateInquiry.consultation_date >= consultation_start
+        )
+    if consultation_date_to:
+        consultation_end = datetime.combine(
+            consultation_date_to + timedelta(days=1),
+            time.min,
+        )
+        if db.get_bind().dialect.name == "postgresql":
+            consultation_end = consultation_end.replace(tzinfo=KST)
+        conditions.append(
+            EstimateInquiry.consultation_date < consultation_end
+        )
     if q:
         like = f"%{q}%"
         conditions.append(or_(
             EstimateInquiry.customer_name.ilike(like),
             EstimateInquiry.customer_phone.ilike(like),
             EstimateInquiry.address.ilike(like),
+            EstimateInquiry.address_detail.ilike(like),
         ))
     total = db.scalar(select(func.count(EstimateInquiry.id)).where(*conditions)) or 0
     inquiries = db.execute(
@@ -771,7 +810,7 @@ def create_estimate_document(
             )
         )
         project.contract_estimate_id = estimate.id
-    if inquiry.status in (InquiryStatus.NEW, InquiryStatus.CONSULTATION_SCHEDULED, InquiryStatus.SITE_VISIT_COMPLETED):
+    if inquiry.status in (InquiryStatus.NEW, InquiryStatus.CONSULTATION_SCHEDULED, InquiryStatus.CONSULTATION_COMPLETED, InquiryStatus.SITE_VISIT_COMPLETED):
         inquiry.status = InquiryStatus.ESTIMATE_DRAFTING
     db.commit()
     return db.execute(select(EstimateDocument).options(joinedload(EstimateDocument.lines)).where(EstimateDocument.id == estimate.id)).unique().scalar_one()

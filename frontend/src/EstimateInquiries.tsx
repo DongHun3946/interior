@@ -52,6 +52,7 @@ const emptyCompanySettings: CompanySettings = {
 const inquiryStatusLabels: Record<InquiryStatus, string> = {
   NEW: "신규 문의",
   CONSULTATION_SCHEDULED: "상담 예약",
+  CONSULTATION_COMPLETED: "상담 완료",
   SITE_VISIT_COMPLETED: "실측 완료",
   ESTIMATE_DRAFTING: "견적 작성 중",
   ESTIMATE_SENT: "견적 발송",
@@ -63,6 +64,7 @@ const inquiryStatusLabels: Record<InquiryStatus, string> = {
 const inquiryStatusStyles: Record<InquiryStatus, string> = {
   NEW: "bg-blue-50 text-blue-700",
   CONSULTATION_SCHEDULED: "bg-violet-50 text-violet-700",
+  CONSULTATION_COMPLETED: "bg-teal-50 text-teal-700",
   SITE_VISIT_COMPLETED: "bg-cyan-50 text-cyan-700",
   ESTIMATE_DRAFTING: "bg-amber-50 text-amber-700",
   ESTIMATE_SENT: "bg-orange-50 text-orange-700",
@@ -74,11 +76,13 @@ const inquiryStatusStyles: Record<InquiryStatus, string> = {
 const statuses: InquiryStatus[] = [
   "NEW",
   "CONSULTATION_SCHEDULED",
+  "CONSULTATION_COMPLETED",
   "CONTRACTED",
 ];
 const inquiryStatusDots: Partial<Record<InquiryStatus, string>> = {
   NEW: "bg-blue-500",
   CONSULTATION_SCHEDULED: "bg-violet-500",
+  CONSULTATION_COMPLETED: "bg-teal-500",
   CONTRACTED: "bg-emerald-500",
 };
 const inquiryStatusFilterOptions: DropdownOption[] = [
@@ -1714,12 +1718,17 @@ function InquiryDetail({
                   type="date"
                   onClick={showDatePicker}
                   value={convertForm.planned_start_date}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const plannedStartDate = event.target.value;
                     setConvertForm({
                       ...convertForm,
-                      planned_start_date: event.target.value,
-                    })
-                  }
+                      planned_start_date: plannedStartDate,
+                      planned_end_date:
+                        convertForm.planned_end_date < plannedStartDate
+                          ? ""
+                          : convertForm.planned_end_date,
+                    });
+                  }}
                 />
               </div>
               <div>
@@ -1891,13 +1900,17 @@ export default function EstimateInquiriesPage({
   const [stats, setStats] = useState<InquiryStats | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<InquiryStatus | "">("");
+  const [consultationDateFrom, setConsultationDateFrom] = useState("");
+  const [consultationDateTo, setConsultationDateTo] = useState("");
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<EstimateInquiry | null>(null);
   const [formMode, setFormMode] = useState<"new" | "edit" | null>(null);
+  const loadRequestRef = useRef(0);
   const loadList = async () => {
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
     setError("");
     try {
@@ -1907,27 +1920,40 @@ export default function EstimateInquiriesPage({
       });
       if (query) params.set("q", query);
       if (status) params.set("status", status);
+      if (consultationDateFrom)
+        params.set("consultation_date_from", consultationDateFrom);
+      if (consultationDateTo)
+        params.set("consultation_date_to", consultationDateTo);
       const [list, summary] = await Promise.all([
         api.inquiries(`?${params}`),
         api.inquiryStats(),
       ]);
+      if (requestId !== loadRequestRef.current) return;
       setItems(list.items);
       setTotal(list.total);
       setStats(summary);
     } catch (e) {
+      if (requestId !== loadRequestRef.current) return;
       setItems([]);
       setTotal(0);
       setError(
         e instanceof Error ? e.message : "견적 문의를 불러오지 못했습니다.",
       );
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestRef.current) setLoading(false);
     }
   };
   useEffect(() => {
     const timer = window.setTimeout(loadList, 180);
     return () => window.clearTimeout(timer);
-  }, [page, query, status]);
+  }, [consultationDateFrom, consultationDateTo, page, query, status]);
+  const resetFilters = () => {
+    setQuery("");
+    setStatus("");
+    setConsultationDateFrom("");
+    setConsultationDateTo("");
+    setPage(1);
+  };
   const open = async (id: string) => {
     setLoading(true);
     try {
@@ -1988,79 +2014,138 @@ export default function EstimateInquiriesPage({
     );
   return (
     <div className="space-y-6 p-5 sm:p-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm text-[#758078]">공사 전 고객도 놓치지 않도록</p>
-          <h2 className="mt-1 text-3xl font-bold text-[#1b3025]">
-            견적·상담 관리
-          </h2>
-        </div>
-        <button className="btn-primary" onClick={() => setFormMode("new")}>
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        {stats && (
+          <div className="grid w-full max-w-2xl grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {[
+              {
+                label: "신규 문의",
+                value: stats.status_counts.NEW || 0,
+                icon: UserRoundPlus,
+                tone: "bg-blue-50 text-blue-700",
+              },
+              {
+                label: "상담 예약",
+                value: stats.status_counts.CONSULTATION_SCHEDULED || 0,
+                icon: CalendarClock,
+                tone: "bg-violet-50 text-violet-700",
+              },
+              {
+                label: "상담 완료",
+                value: stats.status_counts.CONSULTATION_COMPLETED || 0,
+                icon: Check,
+                tone: "bg-teal-50 text-teal-700",
+              },
+              {
+                label: "계약 완료",
+                value: stats.status_counts.CONTRACTED || 0,
+                icon: CheckCircle2,
+                tone: "bg-emerald-50 text-emerald-700",
+              },
+            ].map(({ label, value, icon: Icon, tone }) => (
+              <div
+                className="panel flex min-h-16 items-center gap-3 px-3.5 py-2.5"
+                key={label}
+              >
+                <div
+                  className={`flex size-8 shrink-0 items-center justify-center rounded-md ${tone}`}
+                >
+                  <Icon size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold text-[#75827a]">
+                    {label}
+                  </p>
+                  <p className="mt-0.5 text-lg font-bold leading-none text-[#18372b]">
+                    {value}건
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <button
+          className="btn-primary shrink-0 self-start xl:self-center"
+          onClick={() => setFormMode("new")}
+        >
           <UserRoundPlus size={17} /> 새 견적 문의
         </button>
       </div>
-      {stats && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          {[
-            {
-              label: "신규 문의",
-              value: stats.status_counts.NEW || 0,
-              icon: UserRoundPlus,
-              tone: "bg-blue-50 text-blue-700",
-            },
-            {
-              label: "상담 예약",
-              value: stats.status_counts.CONSULTATION_SCHEDULED || 0,
-              icon: CalendarClock,
-              tone: "bg-violet-50 text-violet-700",
-            },
-            {
-              label: "계약 완료",
-              value: stats.status_counts.CONTRACTED || 0,
-              icon: CheckCircle2,
-              tone: "bg-emerald-50 text-emerald-700",
-            },
-          ].map(({ label, value, icon: Icon, tone }) => (
-            <div className="panel p-4" key={label}>
-              <div className={`inline-flex rounded-xl p-2 ${tone}`}>
-                <Icon size={17} />
-              </div>
-              <p className="mt-3 text-[13px] font-semibold text-[#75827a]">
-                {label}
-              </p>
-              <p className="mt-1 text-2xl font-bold text-[#18372b]">{value}</p>
-            </div>
-          ))}
-        </div>
-      )}
-      <section className="panel overflow-hidden">
-        <div className="flex flex-wrap gap-3 border-b border-[#e8ece8] p-4">
-          <div className="relative min-w-64 flex-1">
-            <Search
-              className="absolute left-3 top-3 text-[#8c9990]"
-              size={16}
-            />
-            <input
-              className="field pl-9"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-              placeholder="고객명, 연락처, 주소 검색"
-            />
-          </div>
-          <DropdownSelect
-            className="w-full sm:w-48"
-            value={status}
-            options={inquiryStatusFilterOptions}
-            onChange={(value) => {
-              setStatus(value as InquiryStatus | "");
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative min-w-64 flex-1">
+          <Search
+            className="absolute left-3 top-3 text-[#8c9990]"
+            size={16}
+          />
+          <input
+            className="field pl-9"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
               setPage(1);
             }}
-            ariaLabel="견적 상담 상태 필터"
+            placeholder="고객명, 연락처, 주소, 상세 주소 검색"
           />
         </div>
+        <DropdownSelect
+          className="w-full sm:w-44"
+          value={status}
+          options={inquiryStatusFilterOptions}
+          onChange={(value) => {
+            setStatus(value as InquiryStatus | "");
+            setPage(1);
+          }}
+          ariaLabel="견적 상담 상태 필터"
+        />
+        <div className="flex w-full items-center gap-1.5 sm:w-auto">
+          <span className="shrink-0 text-xs font-semibold text-[#65746b]">
+            상담 일정
+          </span>
+          <input
+            className="field min-w-0 flex-1 sm:w-36 sm:flex-none"
+            type="date"
+            aria-label="상담 일정 시작일"
+            onClick={showDatePicker}
+            max={consultationDateTo || undefined}
+            value={consultationDateFrom}
+            onChange={(event) => {
+              const nextDate = event.target.value;
+              setConsultationDateFrom(nextDate);
+              if (consultationDateTo && consultationDateTo < nextDate)
+                setConsultationDateTo("");
+              setPage(1);
+            }}
+          />
+          <span className="text-sm text-[#8a968e]">~</span>
+          <input
+            className="field min-w-0 flex-1 sm:w-36 sm:flex-none"
+            type="date"
+            aria-label="상담 일정 종료일"
+            onClick={showDatePicker}
+            min={consultationDateFrom || undefined}
+            value={consultationDateTo}
+            onChange={(event) => {
+              setConsultationDateTo(event.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+        <button
+          type="button"
+          className="btn-secondary shrink-0 sm:px-3"
+          onClick={resetFilters}
+          disabled={
+            !query &&
+            !status &&
+            !consultationDateFrom &&
+            !consultationDateTo &&
+            page === 1
+          }
+        >
+          <RotateCcw size={15} /> 초기화
+        </button>
+      </div>
+      <section className="panel overflow-hidden">
         {error && (
           <p className="m-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
             {error}

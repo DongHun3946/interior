@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import {
@@ -25,7 +26,9 @@ import {
   LayoutDashboard,
   LogOut,
   MapPin,
+  Maximize2,
   Menu,
+  Minimize2,
   Pencil,
   Plus,
   RotateCcw,
@@ -38,12 +41,12 @@ import { AUTH_EXPIRED_EVENT, api, mediaUrl } from "./api";
 import type {
   Cost,
   ContractEstimateReference,
-  Dashboard,
   Image,
   ImageCategory,
   Project,
   ProjectListItem,
   ProjectStatus,
+  ProjectType,
   Payment,
   PaymentMethod,
   PaymentStage,
@@ -68,12 +71,15 @@ import Modal from "./Modal";
 import Pagination from "./Pagination";
 import { showSuccessToast } from "./Toast";
 
+const SIMULATION_ENABLED =
+  import.meta.env.VITE_ENABLE_SIMULATION === "true";
+
 const statusLabels: Record<ProjectStatus, string> = {
-  PLANNING: "예정",
+  PLANNING: "공사 예정",
   IN_PROGRESS: "공사 중",
-  COMPLETED: "완료",
-  ON_HOLD: "보류",
-  CANCELLED: "취소",
+  COMPLETED: "공사 완료",
+  ON_HOLD: "공사 보류",
+  CANCELLED: "공사 취소",
 };
 const statusStyles: Record<ProjectStatus, string> = {
   PLANNING: "bg-[#fff0d8] text-[#94611f] ring-1 ring-inset ring-[#efd4a8]",
@@ -89,7 +95,33 @@ const statusDots: Record<ProjectStatus, string> = {
   ON_HOLD: "bg-[#8a68bd]",
   CANCELLED: "bg-[#cf686f]",
 };
+const projectCardStatusStyles: Record<ProjectStatus, string> = {
+  PLANNING: "border-l-[#c58a2d] bg-[#fff8eb] text-[#83591e]",
+  IN_PROGRESS: "border-l-[#3f72aa] bg-[#f2f7fc] text-[#315f91]",
+  COMPLETED: "border-l-[#4b8560] bg-[#f1f7f3] text-[#376849]",
+  ON_HOLD: "border-l-[#7a62a0] bg-[#f6f3fa] text-[#685384]",
+  CANCELLED: "border-l-[#b85d64] bg-[#fbf2f3] text-[#944d53]",
+};
 const projectStatusOptions = Object.keys(statusLabels) as ProjectStatus[];
+const projectTypeLabels: Record<ProjectType, string> = {
+  INTERIOR: "전체 인테리어",
+  PARTIAL_INTERIOR: "부분 인테리어",
+  REPAIR: "보수 공사",
+  OTHER: "기타",
+};
+const projectTypeStyles: Record<ProjectType, string> = {
+  INTERIOR: "bg-[#e8f2e8] text-[#477653] ring-[#cfe0d2]",
+  PARTIAL_INTERIOR: "bg-[#e9f0fa] text-[#426b9d] ring-[#cfdbeb]",
+  REPAIR: "bg-[#fff1df] text-[#99611f] ring-[#efd5ae]",
+  OTHER: "bg-[#f0edf5] text-[#71627f] ring-[#ddd5e6]",
+};
+const projectTypeOptions: DropdownOption[] = Object.entries(
+  projectTypeLabels,
+).map(([value, label]) => ({ value, label }));
+const projectTypeFilterOptions: DropdownOption[] = [
+  { value: "", label: "모든 공사 구분" },
+  ...projectTypeOptions,
+];
 const photoClassificationPresets = [
   "거실",
   "주방",
@@ -150,6 +182,16 @@ function Badge({ status }: { status: ProjectStatus }) {
       className={`rounded-full px-2.5 py-1 text-[13px] font-bold ${statusStyles[status]}`}
     >
       {statusLabels[status]}
+    </span>
+  );
+}
+
+function ProjectTypeBadge({ projectType }: { projectType: ProjectType }) {
+  return (
+    <span
+      className={`rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset ${projectTypeStyles[projectType]}`}
+    >
+      {projectTypeLabels[projectType]}
     </span>
   );
 }
@@ -605,14 +647,16 @@ function StatCard({
   value,
   tone,
   icon: Icon,
+  onClick,
 }: {
   label: string;
   value: string | number;
   tone: string;
   icon: typeof House;
+  onClick?: () => void;
 }) {
-  return (
-    <div className="panel relative flex items-center gap-3 overflow-hidden px-4 py-3.5">
+  const content = (
+    <>
       <div className={`inline-flex shrink-0 rounded-lg p-2 ${tone}`}>
         <Icon size={16} />
       </div>
@@ -622,7 +666,27 @@ function StatCard({
           {value}
         </p>
       </div>
-    </div>
+      {onClick && (
+        <ArrowUpRight
+          size={15}
+          className="ml-auto shrink-0 text-[#91a097] transition group-hover:text-[#476a55]"
+        />
+      )}
+    </>
+  );
+  const className =
+    "panel relative flex w-full items-center gap-3 overflow-hidden px-4 py-3.5 text-left";
+  return onClick ? (
+    <button
+      type="button"
+      className={`${className} group transition hover:-translate-y-0.5 hover:border-[#b9cabd] hover:shadow-[0_12px_30px_rgba(22,38,31,.08)]`}
+      onClick={onClick}
+      aria-label={`${label} ${value}, 상세 보기`}
+    >
+      {content}
+    </button>
+  ) : (
+    <div className={className}>{content}</div>
   );
 }
 
@@ -643,10 +707,15 @@ const calendarTime = (value: string) =>
 function DashboardCalendar({
   onOpenProject,
   onOpenInquiry,
+  todayScheduleRequest,
+  onTodayScheduleCountChange,
 }: {
   onOpenProject: (id: string) => void;
   onOpenInquiry: (id: string) => void;
+  todayScheduleRequest: number;
+  onTodayScheduleCountChange: (count: number) => void;
 }) {
+  const calendarRef = useRef<HTMLElement>(null);
   const [month, setMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
@@ -655,6 +724,81 @@ function DashboardCalendar({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string>();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [weekHeights, setWeekHeights] = useState<Record<string, number>>({});
+  const [resizingWeek, setResizingWeek] = useState<{
+    key: string;
+    startY: number;
+    startHeight: number;
+  }>();
+
+  useEffect(() => {
+    const handleFullscreenChange = () =>
+      setIsFullscreen(document.fullscreenElement === calendarRef.current);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement === calendarRef.current) {
+        await document.exitFullscreen();
+      } else {
+        await calendarRef.current?.requestFullscreen();
+      }
+    } catch {
+      setError("전체화면으로 전환하지 못했습니다.");
+    }
+  };
+
+  useEffect(() => {
+    if (!resizingWeek) return;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const nextHeight = Math.min(
+        360,
+        Math.max(
+          76,
+          Math.round(
+            resizingWeek.startHeight + event.clientY - resizingWeek.startY,
+          ),
+        ),
+      );
+      setWeekHeights((current) => ({
+        ...current,
+        [resizingWeek.key]: nextHeight,
+      }));
+    };
+    const handlePointerUp = () => setResizingWeek(undefined);
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp, { once: true });
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [resizingWeek]);
+
+  const startWeekResize = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    weekKey: string,
+  ) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const weekElement = event.currentTarget.parentElement;
+    if (!weekElement) return;
+    setResizingWeek({
+      key: weekKey,
+      startY: event.clientY,
+      startHeight: weekElement.getBoundingClientRect().height,
+    });
+  };
 
   useEffect(() => {
     let active = true;
@@ -706,18 +850,25 @@ function DashboardCalendar({
       ),
     );
   }, [month]);
+  const calendarWeekKeys = useMemo(
+    () =>
+      Array.from(
+        { length: calendarDays.length / 7 },
+        (_, weekIndex) => calendarDateKey(calendarDays[weekIndex * 7]),
+      ),
+    [calendarDays],
+  );
 
   const todayKey = calendarDateKey(new Date());
   const visibleMonthLabel = `${month.getFullYear()}년 ${month.getMonth() + 1}월`;
-  const selectedDaySchedule = useMemo(() => {
-    if (!selectedCalendarDate) return [];
+  const scheduleForDate = useCallback((dateKey: string) => {
     return [
       ...inquiries
         .filter(
           (inquiry) =>
             inquiry.consultation_reserved_at &&
             calendarDateTimeKey(inquiry.consultation_reserved_at) ===
-              selectedCalendarDate,
+              dateKey,
         )
         .map((inquiry) => ({
           kind: "consultation" as const,
@@ -732,7 +883,7 @@ function DashboardCalendar({
             project.planned_start_date,
             project.planned_end_date,
           ].sort();
-          return start <= selectedCalendarDate && selectedCalendarDate <= end;
+          return start <= dateKey && dateKey <= end;
         })
         .map((project) => ({
           kind: "project" as const,
@@ -740,17 +891,37 @@ function DashboardCalendar({
           priority: project.status === "IN_PROGRESS" ? 1 : 2,
         })),
     ].sort((left, right) => left.priority - right.priority);
-  }, [inquiries, projects, selectedCalendarDate]);
+  }, [inquiries, projects]);
+  const selectedDaySchedule = useMemo(
+    () =>
+      selectedCalendarDate ? scheduleForDate(selectedCalendarDate) : [],
+    [scheduleForDate, selectedCalendarDate],
+  );
+  const todayScheduleCount = useMemo(
+    () => scheduleForDate(todayKey).length,
+    [scheduleForDate, todayKey],
+  );
+
+  useEffect(() => {
+    onTodayScheduleCountChange(todayScheduleCount);
+  }, [onTodayScheduleCountChange, todayScheduleCount]);
+
+  useEffect(() => {
+    if (todayScheduleRequest > 0) setSelectedCalendarDate(todayKey);
+  }, [todayKey, todayScheduleRequest]);
 
   return (
-    <section className="panel overflow-hidden">
-      <div className="flex flex-col gap-4 border-b border-[#e5ebe6] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div>
+    <section
+      ref={calendarRef}
+      className="panel flex min-h-0 flex-1 flex-col overflow-hidden fullscreen:h-screen fullscreen:w-screen fullscreen:rounded-none fullscreen:border-0 fullscreen:bg-white"
+    >
+      <div className="flex flex-col gap-3 border-b border-[#e5ebe6] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <div className="flex items-center gap-2">
             <CalendarDays size={19} className="text-[#376246]" />
             <h3 className="text-lg font-bold text-[#203a2d]">일정 캘린더</h3>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-4 text-xs font-semibold text-[#66766d]">
+          <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold text-[#66766d]">
             <span className="inline-flex items-center gap-1.5">
               <span className="size-2.5 rounded-sm bg-[#3f7650]" /> 공사 중
             </span>
@@ -802,11 +973,20 @@ function DashboardCalendar({
           >
             오늘
           </button>
+          <button
+            type="button"
+            className="rounded-lg border border-[#d8e0d9] bg-white p-2 text-[#50655a] transition hover:bg-[#f2f6f3]"
+            onClick={toggleFullscreen}
+            aria-label={isFullscreen ? "전체화면 종료" : "캘린더 전체화면"}
+            title={isFullscreen ? "전체화면 종료" : "전체화면으로 보기"}
+          >
+            {isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+          </button>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[760px]">
+      <div className="flex min-h-0 flex-1 overflow-x-auto">
+        <div className="grid min-w-[760px] flex-1 grid-rows-[auto_minmax(0,1fr)]">
           <div className="grid grid-cols-7 border-b border-[#e7ece8] bg-[#f7f9f7]">
             {["월", "화", "수", "목", "금", "토", "일"].map(
               (weekday, index) => (
@@ -821,7 +1001,18 @@ function DashboardCalendar({
               ),
             )}
           </div>
-          <div className="divide-y divide-[#e5ebe6]">
+          <div
+            className="grid min-h-0 divide-y divide-[#e5ebe6]"
+            style={{
+              gridTemplateRows: calendarWeekKeys
+                .map((weekKey) =>
+                  weekHeights[weekKey]
+                    ? `${weekHeights[weekKey]}px`
+                    : "minmax(76px, 1fr)",
+                )
+                .join(" "),
+            }}
+          >
             {Array.from(
               { length: calendarDays.length / 7 },
               (_, weekIndex) => calendarDays.slice(weekIndex * 7, weekIndex * 7 + 7),
@@ -894,47 +1085,60 @@ function DashboardCalendar({
                   return { ...item, lane };
                 });
               const laneCount = laneRanges.length;
-              const visibleLaneCount = Math.min(laneCount, 3);
+              const visibleLaneCapacity = weekHeights[weekStartKey]
+                ? Math.max(
+                    1,
+                    Math.floor((weekHeights[weekStartKey] - 48) / 24),
+                  )
+                : 1;
+              const visibleLaneCount = Math.min(
+                laneCount,
+                visibleLaneCapacity,
+              );
 
               return (
                 <div key={weekStartKey} className="relative">
-                  <div className="grid grid-cols-7 gap-px bg-[#e5ebe6]">
+                  <div className="grid h-full grid-cols-7 gap-px bg-[#e5ebe6]">
                     {weekDays.map((date) => {
                       const dateKey = calendarDateKey(date);
                       const isCurrentMonth =
                         date.getMonth() === month.getMonth();
                       const hiddenScheduleCount = scheduleItems.filter(
                         (item) =>
-                          item.lane >= 3 &&
+                          item.lane >= visibleLaneCount &&
                           item.segmentStart <= dateKey &&
                           dateKey <= item.segmentEnd,
                       ).length;
                       return (
                         <div
                           key={dateKey}
-                          className={`min-h-28 bg-white ${
-                            isCurrentMonth ? "" : "bg-[#fafbfa]"
+                          className={`h-full min-h-[76px] ${
+                            isCurrentMonth
+                              ? "bg-white"
+                              : "bg-[#edf0ee] shadow-[inset_0_0_0_1px_#dce2dd]"
                           }`}
                         >
-                          <div className="flex justify-end px-2 pb-1.5 pt-2">
+                          <div className="flex justify-end px-2 pb-1 pt-1.5">
                             <span
-                              className={`flex size-6 items-center justify-center rounded-full text-xs font-semibold ${
+                              className={`flex h-6 items-center justify-center font-semibold ${
                                 dateKey === todayKey
-                                  ? "bg-[#234c38] text-white"
+                                  ? "min-w-6 rounded-full bg-[#234c38] px-1 text-xs text-white"
                                   : isCurrentMonth
-                                    ? "text-[#465a4f]"
-                                    : "text-[#a1aaa4]"
+                                    ? "min-w-6 rounded-full px-1 text-xs text-[#465a4f]"
+                                    : "min-w-10 rounded-md bg-[#dce2de] px-1.5 text-[10px] text-[#77827b]"
                               }`}
                             >
-                              {date.getDate()}
+                              {isCurrentMonth
+                                ? date.getDate()
+                                : `${date.getMonth() + 1}/${date.getDate()}`}
                             </span>
                           </div>
-                          <div style={{ height: visibleLaneCount * 28 }} />
+                          <div style={{ height: visibleLaneCount * 24 }} />
                           {hiddenScheduleCount > 0 && (
-                            <div className="px-2 pb-2">
+                            <div className="px-2 pb-1">
                               <button
                                 type="button"
-                                className="w-full rounded-md bg-[#f1f4f2] px-2 py-1 text-left text-[11px] font-bold text-[#596a60] transition hover:bg-[#e5ebe6] hover:text-[#294534]"
+                                className="w-full rounded-md bg-[#f1f4f2] px-2 py-0.5 text-left text-[10px] font-bold text-[#596a60] transition hover:bg-[#e5ebe6] hover:text-[#294534]"
                                 onClick={() => setSelectedCalendarDate(dateKey)}
                               >
                                 +{hiddenScheduleCount}개 일정
@@ -946,15 +1150,17 @@ function DashboardCalendar({
                     })}
                   </div>
 
-                  {scheduleItems.some((item) => item.lane < 3) && (
+                  {scheduleItems.some(
+                    (item) => item.lane < visibleLaneCount,
+                  ) && (
                     <div
-                      className="pointer-events-none absolute inset-x-0 top-[38px] grid grid-cols-7 gap-x-px gap-y-1"
+                      className="pointer-events-none absolute inset-x-0 top-[32px] grid grid-cols-7 gap-x-px"
                       style={{
                         gridTemplateRows: `repeat(${visibleLaneCount}, 24px)`,
                       }}
                     >
                       {scheduleItems
-                        .filter((item) => item.lane < 3)
+                        .filter((item) => item.lane < visibleLaneCount)
                         .map((item) => {
                         const startColumn = weekDays.findIndex(
                           (date) =>
@@ -969,7 +1175,7 @@ function DashboardCalendar({
                             <button
                               key={`consultation-${item.inquiry.id}`}
                               type="button"
-                              className="pointer-events-auto mx-2 flex min-w-0 items-center truncate rounded-md border-x-[3px] border-x-[#b86518] bg-[#fff0df] px-2 text-left text-[11px] font-semibold text-[#9a5b1e] transition hover:z-20 hover:brightness-95"
+                              className="pointer-events-auto mx-2 flex min-w-0 items-center truncate rounded-md border-x-[3px] border-y border-x-[#b86518] border-y-[#b86518] bg-[#fff0df] px-2 text-left text-[11px] font-semibold text-[#9a5b1e] transition hover:z-20 hover:brightness-95"
                               style={{
                                 gridColumn: `${startColumn + 1} / ${endColumn + 2}`,
                                 gridRow: item.lane + 1,
@@ -993,10 +1199,10 @@ function DashboardCalendar({
                           <button
                             key={`project-${item.project.id}`}
                             type="button"
-                            className={`pointer-events-auto mx-0 flex min-w-0 items-center truncate px-2 text-left text-[11px] font-semibold transition hover:z-20 hover:brightness-95 ${
+                            className={`pointer-events-auto mx-0 flex min-w-0 items-center truncate border-y px-2 text-left text-[11px] font-semibold transition hover:z-20 hover:brightness-95 ${
                               item.project.status === "PLANNING"
-                                ? "bg-[#e4edf9] text-[#315f99]"
-                                : "bg-[#dcece0] text-[#285d3a]"
+                                ? "border-y-[#315f99] bg-[#e4edf9] text-[#315f99]"
+                                : "border-y-[#285d3a] bg-[#dcece0] text-[#285d3a]"
                             } ${
                               startsHere
                                 ? `ml-2 rounded-l-md border-l-[3px] ${
@@ -1032,6 +1238,17 @@ function DashboardCalendar({
                         })}
                     </div>
                   )}
+                  <button
+                    type="button"
+                    className="group absolute inset-x-0 bottom-[-4px] z-30 h-2 cursor-row-resize touch-none"
+                    onPointerDown={(event) =>
+                      startWeekResize(event, weekStartKey)
+                    }
+                    aria-label={`${weekDays[0].getMonth() + 1}월 ${weekDays[0].getDate()}일 주차 높이 조절`}
+                    title="위아래로 드래그하여 일정 행 높이 조절"
+                  >
+                    <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-transparent transition group-hover:h-0.5 group-hover:bg-[#6f927a]" />
+                  </button>
                 </div>
               );
             })}
@@ -1059,6 +1276,11 @@ function DashboardCalendar({
           maxWidthClass="max-w-md"
         >
           <div className="space-y-2 px-5 pb-5">
+            {selectedDaySchedule.length === 0 && (
+              <div className="rounded-xl border border-dashed border-[#d7dfd9] bg-[#f8faf8] px-5 py-8 text-center text-sm text-[#78867d]">
+                등록된 일정이 없습니다.
+              </div>
+            )}
             {selectedDaySchedule.map((item) => {
               if (item.kind === "consultation") {
                 return (
@@ -1130,63 +1352,39 @@ function DashboardCalendar({
 }
 
 function DashboardPage({
-  data,
-  onProjects,
   onOpenProject,
   onOpenInquiry,
 }: {
-  data: Dashboard | null;
-  onProjects: () => void;
   onOpenProject: (id: string) => void;
   onOpenInquiry: (id: string) => void;
 }) {
-  if (!data)
-    return (
-      <div className="p-8 text-sm text-[#7d8981]">
-        대시보드를 불러오는 중입니다…
-      </div>
-    );
+  const [todayScheduleCount, setTodayScheduleCount] = useState(0);
+  const [todayScheduleRequest, setTodayScheduleRequest] = useState(0);
   return (
-    <div className="space-y-7 p-5 sm:p-8">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm text-[#758078]">좋은 아침입니다, 관리자님.</p>
-          <h2 className="serif mt-1 text-3xl text-[#1b3025]">
-            오늘의 현장을
-            <br />
-            <span className="text-[#64846c]">한눈에 확인하세요.</span>
-          </h2>
+    <div className="flex min-h-0 flex-col gap-4 p-5 sm:p-6 md:h-[calc(100dvh-89px)] md:overflow-hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="serif text-2xl text-[#1b3025] lg:text-3xl">
+          오늘의 현장을 <span className="text-[#64846c]">한눈에 확인하세요</span>
+        </h2>
+        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row">
+          <div className="w-full sm:w-52">
+            <StatCard
+              label="오늘의 일정"
+              value={`${todayScheduleCount}건`}
+              tone="bg-[#e8f3f2] text-[#39726d]"
+              icon={CalendarDays}
+              onClick={() =>
+                setTodayScheduleRequest((current) => current + 1)
+              }
+            />
+          </div>
         </div>
-        <button
-          className="btn-primary self-start sm:self-auto"
-          onClick={onProjects}
-        >
-          <Plus size={17} />새 현장 등록
-        </button>
-      </div>
-      <div className="grid max-w-3xl gap-3 sm:grid-cols-3">
-        <StatCard
-          label="전체 현장"
-          value={data.total}
-          tone="bg-[#e8f2e8] text-[#477653]"
-          icon={FolderKanban}
-        />
-        <StatCard
-          label="공사 진행 중"
-          value={data.in_progress}
-          tone="bg-[#fff3dd] text-[#a0712c]"
-          icon={Clock3}
-        />
-        <StatCard
-          label="완료 현장"
-          value={data.completed}
-          tone="bg-[#eef0fb] text-[#6172ae]"
-          icon={CheckCircle2}
-        />
       </div>
       <DashboardCalendar
         onOpenProject={onOpenProject}
         onOpenInquiry={onOpenInquiry}
+        todayScheduleRequest={todayScheduleRequest}
+        onTodayScheduleCountChange={setTodayScheduleCount}
       />
     </div>
   );
@@ -1219,8 +1417,15 @@ function ProjectCard({
             <ImageIcon size={29} />
           </div>
         )}
-        <div className="absolute left-4 top-4">
-          <Badge status={project.status} />
+        <div className="absolute left-4 top-4 inline-flex overflow-hidden rounded-md border border-[#d7ddd8] bg-white/95">
+          <span
+            className={`border-l-[3px] border-r border-r-[#dfe4e0] px-2.5 py-1.5 text-[11px] font-bold ${projectCardStatusStyles[project.status]}`}
+          >
+            {statusLabels[project.status]}
+          </span>
+          <span className="px-2.5 py-1.5 text-[11px] font-semibold text-[#405248]">
+            {projectTypeLabels[project.project_type]}
+          </span>
         </div>
         {project.is_public && (
           <span className="absolute right-4 top-4 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-[#477653]">
@@ -1291,6 +1496,7 @@ function ProjectsPage({
   const [items, setItems] = useState<ProjectListItem[]>([]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
+  const [projectType, setProjectType] = useState("");
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -1306,6 +1512,7 @@ function ProjectsPage({
     });
     if (query) params.set("q", query);
     if (status) params.set("status", status);
+    if (projectType) params.set("project_type", projectType);
     if (showArchived) params.set("archived", "true");
     api
       .projects(`?${params}`)
@@ -1327,7 +1534,13 @@ function ProjectsPage({
   useEffect(() => {
     const timer = setTimeout(load, 180);
     return () => clearTimeout(timer);
-  }, [page, query, status, showArchived]);
+  }, [page, projectType, query, status, showArchived]);
+  const resetFilters = () => {
+    setQuery("");
+    setProjectType("");
+    setStatus("");
+    setPage(1);
+  };
   const restoreProject = async (id: string) => {
     setRestoringId(id);
     setError("");
@@ -1347,17 +1560,19 @@ function ProjectsPage({
   };
   return (
     <div className="space-y-6 p-5 sm:p-8">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm text-[#758078]">
-            {showArchived
-              ? "삭제된 프로젝트를 관리합니다"
-              : "모든 프로젝트를 한곳에서"}
-          </p>
-          <h2 className="serif mt-1 text-3xl text-[#1b3025]">
-            {showArchived ? "삭제된 현장" : "전체 현장"}
-          </h2>
-        </div>
+      <div
+        className={`flex flex-col gap-4 sm:flex-row sm:items-end ${showArchived ? "justify-between" : "justify-end"}`}
+      >
+        {showArchived && (
+          <div>
+            <p className="text-sm text-[#758078]">
+              삭제된 프로젝트를 관리합니다
+            </p>
+            <h2 className="serif mt-1 text-3xl text-[#1b3025]">
+              삭제된 현장
+            </h2>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2 self-start sm:self-auto">
           <button
             type="button"
@@ -1395,6 +1610,16 @@ function ProjectsPage({
           />
         </div>
         <DropdownSelect
+          className="sm:w-48"
+          value={projectType}
+          options={projectTypeFilterOptions}
+          onChange={(value) => {
+            setProjectType(value);
+            setPage(1);
+          }}
+          ariaLabel="공사 구분 필터"
+        />
+        <DropdownSelect
           className="sm:w-44"
           value={status}
           options={projectStatusFilterOptions}
@@ -1404,6 +1629,14 @@ function ProjectsPage({
           }}
           ariaLabel="현장 상태 필터"
         />
+        <button
+          type="button"
+          className="btn-secondary shrink-0 sm:px-3"
+          onClick={resetFilters}
+          disabled={!query && !projectType && !status && page === 1}
+        >
+          <RotateCcw size={15} /> 초기화
+        </button>
       </div>
       {error && (
         <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -1593,6 +1826,7 @@ function ProjectForm({
       ? { ...project }
       : {
           title: "",
+          project_type: "INTERIOR",
           status: "PLANNING",
           address: "",
           address_detail: "",
@@ -1613,8 +1847,18 @@ function ProjectForm({
     setForm((prev) => ({ ...prev, [key]: value }));
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    setSaving(true);
     setError("");
+    const plannedStartDate = String(form.planned_start_date || "");
+    const plannedEndDate = String(form.planned_end_date || "");
+    if (
+      plannedStartDate &&
+      plannedEndDate &&
+      plannedEndDate < plannedStartDate
+    ) {
+      setError("공사 종료일은 시작일보다 빠를 수 없습니다.");
+      return;
+    }
+    setSaving(true);
     try {
       const body = {
         ...form,
@@ -1705,6 +1949,15 @@ function ProjectForm({
               />
             </div>
             <div>
+              <label className="label">공사 구분</label>
+              <DropdownSelect
+                value={String(form.project_type || "INTERIOR")}
+                options={projectTypeOptions}
+                onChange={(projectType) => set("project_type", projectType)}
+                ariaLabel="공사 구분"
+              />
+            </div>
+            <div>
               <label className="label">공사 상태</label>
               <ProjectStatusSelect
                 value={String(form.status) as ProjectStatus}
@@ -1769,7 +2022,18 @@ function ProjectForm({
                 type="date"
                 onClick={showDatePicker}
                 value={String(form.planned_start_date || "")}
-                onChange={(e) => set("planned_start_date", e.target.value)}
+                onChange={(e) => {
+                  const plannedStartDate = e.target.value;
+                  setForm((current) => ({
+                    ...current,
+                    planned_start_date: plannedStartDate,
+                    planned_end_date:
+                      current.planned_end_date &&
+                      String(current.planned_end_date) < plannedStartDate
+                        ? ""
+                        : current.planned_end_date,
+                  }));
+                }}
               />
             </div>
             <div>
@@ -1778,6 +2042,7 @@ function ProjectForm({
                 className="field"
                 type="date"
                 onClick={showDatePicker}
+                min={String(form.planned_start_date || "") || undefined}
                 value={String(form.planned_end_date || "")}
                 onChange={(e) => set("planned_end_date", e.target.value)}
               />
@@ -1799,9 +2064,6 @@ function ProjectForm({
                 onChange={(e) => set("internal_memo", e.target.value)}
                 placeholder="고객 요청이나 현장 특이사항 등 관리자용 메모를 입력해 주세요."
               />
-              <p className="mt-1.5 text-xs text-[#7f8d84]">
-                관리자 화면에서만 확인할 수 있습니다.
-              </p>
             </div>
           </div>
         </section>
@@ -2092,6 +2354,7 @@ function DetailPage({
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="serif text-3xl text-[#1b3025]">{project.title}</h2>
             <Badge status={project.status} />
+            <ProjectTypeBadge projectType={project.project_type} />
             {project.is_public && (
               <span className="rounded-full bg-[#e9f5ee] px-2.5 py-1 text-xs font-semibold text-[#3b7e59]">
                 공개 중
@@ -2122,7 +2385,9 @@ function DetailPage({
         {[
           ["overview", "현장 개요"],
           ["photos", `사진 ${project.images.length}`],
-          ["simulation", "2D·3D 시뮬레이션"],
+          ...(SIMULATION_ENABLED
+            ? [["simulation", "2D·3D 시뮬레이션"]]
+            : []),
           ["costs", "공사비·입금"],
         ].map(([key, label]) => (
           <button
@@ -2139,6 +2404,10 @@ function DetailPage({
           <section className="panel p-5 sm:p-7">
             <h3 className="font-semibold text-[#294534]">현장 정보</h3>
             <div className="mt-5 grid gap-y-6 text-sm sm:grid-cols-2">
+              <div>
+                <p className="label !text-[#7a8580]">공사 구분</p>
+                <ProjectTypeBadge projectType={project.project_type} />
+              </div>
               <div>
                 <p className="label !text-[#7a8580]">상태</p>
                 <Badge status={project.status} />
@@ -2397,7 +2666,9 @@ function DetailPage({
           )}
         </section>
       )}
-      {tab === "simulation" && <SimulationWorkspace projectId={id} />}
+      {SIMULATION_ENABLED && tab === "simulation" && (
+        <SimulationWorkspace projectId={id} />
+      )}
       {tab === "costs" && (
         <section className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -2786,9 +3057,9 @@ function MapPage({ onOpen }: { onOpen: (id: string) => void }) {
     };
   }, []);
   return (
-    <div className="grid gap-5 p-5 sm:p-8 lg:grid-cols-[1fr_320px]">
+    <div className="grid gap-5 p-5 sm:p-8 lg:h-[calc(100dvh-89px)] lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
       <NaverMap
-        className="min-h-[420px] overflow-hidden rounded-[24px] border border-[#e2e8e2] bg-[#edf2ed] sm:min-h-[560px]"
+        className="min-h-[420px] overflow-hidden rounded-[24px] border border-[#e2e8e2] bg-[#edf2ed] sm:min-h-[560px] lg:h-full lg:min-h-0"
         markers={mappedProjects.map((project) => ({
           id: project.id,
           latitude: Number(project.latitude),
@@ -2797,17 +3068,23 @@ function MapPage({ onOpen }: { onOpen: (id: string) => void }) {
           address: project.address,
         }))}
       />
-      <section className="panel overflow-hidden border-2 !border-[#afc0b3] shadow-[0_10px_28px_rgba(24,55,43,.14)]">
-        <div className="border-b-2 border-[#bccac0] p-5">
-          <h2 className="font-semibold text-[#294534]">지도에 표시된 현장</h2>
-          {mapError && (
-            <p className="mt-1 text-xs text-rose-600">{mapError}</p>
-          )}
+      <section className="panel flex min-h-0 flex-col overflow-hidden border-2 !border-[#afc0b3] shadow-[0_10px_28px_rgba(24,55,43,.14)]">
+        <div className="border-b-2 border-[#294a39] bg-[#294a39] px-4 py-3.5 text-white">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <MapPin size={18} className="shrink-0 text-[#c8ddce]" />
+              <h2 className="font-semibold">지도에 표시된 현장</h2>
+            </div>
+            <span className="shrink-0 text-xs font-medium text-[#c8ddce]">
+              현재 {mappedProjects.length}곳 표시
+            </span>
+          </div>
+          {mapError && <p className="mt-1.5 text-xs text-rose-200">{mapError}</p>}
         </div>
         {error ? (
-          <p className="p-5 text-sm text-[#a14e4e]">{error}</p>
+          <p className="flex-1 p-5 text-sm text-[#a14e4e]">{error}</p>
         ) : (
-          <div className="divide-y-2 divide-[#bccac0]">
+          <div className="min-h-0 flex-1 divide-y-2 divide-[#bccac0] overflow-y-auto">
             {projects.map((project) => (
               <button
                 key={project.id}
@@ -2934,7 +3211,6 @@ function AdminApp() {
     string | undefined
   >(initialRoute.applyProjectId);
   const [formProject, setFormProject] = useState<Project | undefined>();
-  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigateAdmin = (nextPage: string, projectId?: string | null) => {
     setPage(nextPage);
@@ -3026,13 +3302,6 @@ function AdminApp() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
-  useEffect(() => {
-    if (authenticated)
-      api
-        .dashboard()
-        .then(setDashboard)
-        .catch(() => {});
-  }, [authenticated, page]);
   if (!authenticated)
     return (
       <Login
@@ -3122,8 +3391,6 @@ function AdminApp() {
   } else {
     content = (
       <DashboardPage
-        data={dashboard}
-        onProjects={() => navigateAdmin("projects")}
         onOpenProject={(id) => navigateAdmin("detail", id)}
         onOpenInquiry={openInquiry}
       />

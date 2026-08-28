@@ -4,6 +4,11 @@ export type ProjectStatus =
   | "COMPLETED"
   | "ON_HOLD"
   | "CANCELLED";
+export type ProjectType =
+  | "INTERIOR"
+  | "PARTIAL_INTERIOR"
+  | "REPAIR"
+  | "OTHER";
 export type ImageCategory = "BEFORE" | "PROGRESS" | "AFTER" | "ETC";
 export type CostCategory =
   | "DEMOLITION"
@@ -47,6 +52,7 @@ export interface Project {
   title: string;
   customer_name?: string;
   customer_phone?: string;
+  project_type: ProjectType;
   status: ProjectStatus;
   housing_type?: string;
   area_pyeong?: number;
@@ -70,6 +76,7 @@ export interface Project {
 export interface ProjectListItem {
   id: string;
   title: string;
+  project_type: ProjectType;
   status: ProjectStatus;
   address: string;
   latitude?: number;
@@ -203,6 +210,7 @@ export interface CompanySettings {
 export type InquiryStatus =
   | "NEW"
   | "CONSULTATION_SCHEDULED"
+  | "CONSULTATION_COMPLETED"
   | "SITE_VISIT_COMPLETED"
   | "ESTIMATE_DRAFTING"
   | "ESTIMATE_SENT"

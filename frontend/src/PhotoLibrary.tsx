@@ -7,6 +7,7 @@ import {
   ImageIcon,
   MapPin,
   Maximize2,
+  RotateCcw,
   Search,
   Star,
 } from "lucide-react";
@@ -242,6 +243,14 @@ export default function PhotoLibrary({
     setter(value);
     setPage(1);
   };
+  const resetFilters = () => {
+    setProjectId("");
+    setClassification("");
+    setVisibility("");
+    setSearchInput("");
+    setSearchQuery("");
+    setPage(1);
+  };
   const updatePhoto = async (
     image: AdminImage,
     values: Record<string, unknown>,
@@ -366,12 +375,26 @@ export default function PhotoLibrary({
                 aria-label="사진 검색"
               />
             </div>
-            <button
-              type="submit"
-              className="btn-primary sm:col-span-2 xl:col-span-1"
-            >
-              <Search size={15} /> 검색
-            </button>
+            <div className="flex gap-2 sm:col-span-2 xl:col-span-1">
+              <button type="submit" className="btn-primary flex-1">
+                <Search size={15} /> 검색
+              </button>
+              <button
+                type="button"
+                className="btn-secondary flex-1"
+                onClick={resetFilters}
+                disabled={
+                  !projectId &&
+                  !classification &&
+                  !visibility &&
+                  !searchInput &&
+                  !searchQuery &&
+                  page === 1
+                }
+              >
+                <RotateCcw size={15} /> 초기화
+              </button>
+            </div>
           </form>
         </div>
       </section>

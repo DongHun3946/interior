@@ -234,6 +234,37 @@ def _migrate_project_content_fields(engine: Engine) -> None:
         )
 
 
+def _migrate_project_type(engine: Engine) -> None:
+    inspector = inspect(engine)
+    if "projects" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("projects")}
+    quote = engine.dialect.identifier_preparer.quote
+    with engine.begin() as connection:
+        if "project_type" not in columns:
+            connection.execute(
+                text(
+                    f"ALTER TABLE {quote('projects')} "
+                    f"ADD COLUMN {quote('project_type')} "
+                    "VARCHAR(30) NOT NULL DEFAULT 'INTERIOR'"
+                )
+            )
+        connection.execute(
+            text(
+                f"UPDATE {quote('projects')} SET {quote('project_type')} = 'INTERIOR' "
+                f"WHERE {quote('project_type')} IS NULL "
+                f"OR {quote('project_type')} NOT IN "
+                "('INTERIOR', 'PARTIAL_INTERIOR', 'REPAIR', 'OTHER')"
+            )
+        )
+        connection.execute(
+            text(
+                f"CREATE INDEX IF NOT EXISTS {quote('ix_projects_project_type')} "
+                f"ON {quote('projects')} ({quote('project_type')})"
+            )
+        )
+
+
 def _migrate_consultation_reserved_at(engine: Engine) -> None:
     inspector = inspect(engine)
     if "estimate_inquiries" not in inspector.get_table_names():
@@ -273,11 +304,18 @@ def ensure_schema_compatibility(engine: Engine) -> None:
     _migrate_company_session_timeout(engine)
     _migrate_project_contract_estimate(engine)
     _migrate_project_content_fields(engine)
+    _migrate_project_type(engine)
     _migrate_consultation_reserved_at(engine)
     _drop_removed_columns(engine)
     _drop_legacy_cost_items(engine)
     if engine.dialect.name == "postgresql":
         with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TYPE inquirystatus ADD VALUE IF NOT EXISTS "
+                    "'CONSULTATION_COMPLETED' AFTER 'CONSULTATION_SCHEDULED'"
+                )
+            )
             connection.execute(
                 text("ALTER TYPE paymentstage ADD VALUE IF NOT EXISTS 'LUMP_SUM'")
             )

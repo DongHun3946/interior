@@ -26,6 +26,13 @@ class ProjectStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"
 
 
+class ProjectType(str, enum.Enum):
+    INTERIOR = "INTERIOR"
+    PARTIAL_INTERIOR = "PARTIAL_INTERIOR"
+    REPAIR = "REPAIR"
+    OTHER = "OTHER"
+
+
 class ImageCategory(str, enum.Enum):
     BEFORE = "BEFORE"
     PROGRESS = "PROGRESS"
@@ -62,6 +69,7 @@ class PaymentMethod(str, enum.Enum):
 class InquiryStatus(str, enum.Enum):
     NEW = "NEW"
     CONSULTATION_SCHEDULED = "CONSULTATION_SCHEDULED"
+    CONSULTATION_COMPLETED = "CONSULTATION_COMPLETED"
     SITE_VISIT_COMPLETED = "SITE_VISIT_COMPLETED"
     ESTIMATE_DRAFTING = "ESTIMATE_DRAFTING"
     ESTIMATE_SENT = "ESTIMATE_SENT"
@@ -163,6 +171,12 @@ class Project(Base):
     title: Mapped[str] = mapped_column(String(200), index=True)
     customer_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     customer_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    project_type: Mapped[ProjectType] = mapped_column(
+        Enum(ProjectType, native_enum=False, length=30),
+        default=ProjectType.INTERIOR,
+        server_default=ProjectType.INTERIOR.value,
+        index=True,
+    )
     status: Mapped[ProjectStatus] = mapped_column(Enum(ProjectStatus), default=ProjectStatus.PLANNING, index=True)
     housing_type: Mapped[str | None] = mapped_column(String(60), nullable=True)
     area_pyeong: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)

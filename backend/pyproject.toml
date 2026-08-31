@@ -4,6 +4,7 @@ version = "1.0.0"
 description = "Interior Studio FastAPI backend"
 requires-python = ">=3.11"
 dependencies = [
+  "boto3==1.40.39",
   "fastapi==0.115.6",
   "uvicorn[standard]==0.34.0",
   "sqlalchemy==2.0.37",

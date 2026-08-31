@@ -10,7 +10,7 @@ from .db import get_db
 from .models import AIJob, AIJobStatus, AIJobType, AssetSourceType, DesignAsset, MaterialType, ProcessingStatus, Project, ScanSourceType, Simulation, SimulationStatus, SimulationVersion, SpaceScan, SurfaceMaterial, User
 from .security import get_current_user
 from .simulation_schemas import AIJobOut, AssetCreate, AssetOut, GenerationRequest, MaterialOut, ScanCreate, ScanOut, SceneUpdate, SimulationCreate, SimulationOut, SimulationUpdate, VersionCreate, VersionOut
-from .storage import save_scan_upload, save_upload
+from .storage import StorageUploadError, save_scan_upload, save_upload
 
 router = APIRouter(prefix="/api/v1", tags=["interior-simulation"])
 
@@ -193,6 +193,8 @@ def create_material(
         _, url, _ = save_upload(f"materials/{project_id}", file)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
+    except StorageUploadError as error:
+        raise HTTPException(status_code=502, detail=str(error))
     material = SurfaceMaterial(owner_project_id=project_id, material_type=material_type, name=name.strip(), albedo_url=url, real_width=real_width, real_height=real_height, seamless=seamless)
     db.add(material)
     db.commit()
@@ -248,6 +250,8 @@ def upload_scan_files(
             manifest_files.append({"storage_key": key, "url": url, "size": size, "mime_type": upload.content_type, "filename": upload.filename})
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
+    except StorageUploadError as error:
+        raise HTTPException(status_code=502, detail=str(error))
     item = SpaceScan(simulation_id=simulation_id, source_type=source_type, status=ProcessingStatus.UPLOADING, input_manifest={"files": manifest_files})
     db.add(item)
     db.commit()
@@ -308,6 +312,8 @@ def generate_asset_from_files(
             uploaded.append({"storage_key": key, "url": url, "size": size, "mime_type": upload.content_type, "filename": upload.filename})
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
+    except StorageUploadError as error:
+        raise HTTPException(status_code=502, detail=str(error))
     job = AIJob(job_type=AIJobType.FURNITURE_3D, target_id=project_id, provider=provider, input_json={"files": uploaded})
     db.add(job)
     db.commit()

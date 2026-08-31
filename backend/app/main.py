@@ -19,19 +19,22 @@ from .models import CompanySettings, EstimateDocument, EstimateInquiry, Estimate
 from .schemas import AdminImageList, AdminImageOut, CompanySettingsOut, CompanySettingsUpdate, ContractEstimateApply, ContractEstimateHistoryOut, ContractEstimateLineOut, ContractEstimateReference, CostSummary, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, ManagementOverview, ManagementOverviewAccess, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
 from .security import create_access_token, get_current_user, hash_password, verify_password
 from .schema_compat import ensure_schema_compatibility
-from .storage import save_upload
+from .storage import StorageUploadError, save_upload, validate_storage_configuration
 from .simulation_routes import router as simulation_router
 
 settings = get_settings()
 KST = timezone(timedelta(hours=9))
-Path(settings.media_dir).mkdir(parents=True, exist_ok=True)
+if not settings.uses_r2:
+    Path(settings.media_dir).mkdir(parents=True, exist_ok=True)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    validate_storage_configuration()
     Base.metadata.create_all(bind=engine)
     ensure_schema_compatibility(engine)
-    Path(settings.media_dir).mkdir(parents=True, exist_ok=True)
+    if not settings.uses_r2:
+        Path(settings.media_dir).mkdir(parents=True, exist_ok=True)
     with Session(engine) as db:
         admin = db.scalar(select(User).where(User.login_id == settings.admin_login_id))
         if not admin:
@@ -50,7 +53,8 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origin_list, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-app.mount("/media", StaticFiles(directory=settings.media_dir), name="media")
+if not settings.uses_r2:
+    app.mount("/media", StaticFiles(directory=settings.media_dir), name="media")
 app.include_router(simulation_router)
 
 
@@ -615,6 +619,8 @@ def upload_image(project_id: UUID, category: ImageCategory = Query(ImageCategory
         storage_key, url, size = save_upload(str(project_id), file)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except StorageUploadError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     has_active_cover = db.scalar(select(ProjectImage.id).where(ProjectImage.project_id == project_id, ProjectImage.is_cover.is_(True), ProjectImage.deleted_at.is_(None)).limit(1)) is not None
     is_cover = is_cover or not has_active_cover
     if is_cover:

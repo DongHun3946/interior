@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -22,9 +23,15 @@ class Settings(BaseSettings):
     admin_login_id: str = "admin"
     admin_password: str = "admin1234!"
     management_overview_password: str = ""
+    storage_backend: Literal["local", "r2"] = "local"
     media_dir: str = "media"
     max_upload_size: int = 15 * 1024 * 1024
     max_scan_upload_size: int = 500 * 1024 * 1024
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket_name: str = ""
+    r2_public_base_url: str = ""
     naver_maps_client_id: str = ""
     naver_maps_client_secret: str = ""
 
@@ -37,6 +44,14 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
+
+    @property
+    def uses_r2(self) -> bool:
+        return self.storage_backend == "r2"
+
+    @property
+    def r2_endpoint_url(self) -> str:
+        return f"https://{self.r2_account_id}.r2.cloudflarestorage.com"
 
 
 @lru_cache

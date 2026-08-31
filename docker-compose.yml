@@ -28,6 +28,9 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin1234!}
       MANAGEMENT_OVERVIEW_PASSWORD: ${MANAGEMENT_OVERVIEW_PASSWORD:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      REQUEST_LOG_ENABLED: ${REQUEST_LOG_ENABLED:-true}
+      LOG_HEALTH_CHECKS: ${LOG_HEALTH_CHECKS:-false}
       STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
       MEDIA_DIR: /app/media
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
@@ -44,6 +47,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    logging:
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "10"
 
   frontend:
     build:

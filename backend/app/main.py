@@ -6,7 +6,7 @@ import secrets
 from uuid import UUID
 
 import httpx
-from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
@@ -14,10 +14,13 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from .core.config import get_settings
+from . import audit as _audit  # Registers transaction-scoped audit listeners.
 from .db import Base, engine, get_db
 from .models import CompanySettings, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, Project, ProjectContractEstimateHistory, ProjectImage, ProjectStatus, ProjectStatusHistory, ProjectType, User, UserRole
 from .schemas import AdminImageList, AdminImageOut, CompanySettingsOut, CompanySettingsUpdate, ContractEstimateApply, ContractEstimateHistoryOut, ContractEstimateLineOut, ContractEstimateReference, CostSummary, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, ManagementOverview, ManagementOverviewAccess, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
 from .security import create_access_token, get_current_user, hash_password, verify_password
+from .request_context import set_authenticated_user
+from .request_logging import install_request_logging
 from .schema_compat import ensure_schema_compatibility
 from .storage import StorageUploadError, save_upload, validate_storage_configuration
 from .simulation_routes import router as simulation_router
@@ -53,6 +56,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origin_list, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+install_request_logging(app)
 if not settings.uses_r2:
     app.mount("/media", StaticFiles(directory=settings.media_dir), name="media")
 app.include_router(simulation_router)
@@ -148,12 +152,14 @@ def health() -> dict[str, str]:
 
 
 @app.post("/api/v1/auth/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.login_id == form_data.username))
     if not user or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="아이디 또는 비밀번호를 확인해주세요.")
     company = db.scalar(select(CompanySettings).order_by(CompanySettings.created_at).limit(1))
     session_timeout_minutes = company.session_timeout_minutes if company else 480
+    request.state.user_id = str(user.id)
+    set_authenticated_user(str(user.id), "/api/v1/auth/login")
     return Token(
         access_token=create_access_token(
             str(user.id), expires_minutes=session_timeout_minutes

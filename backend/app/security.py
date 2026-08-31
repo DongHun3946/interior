@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 import bcrypt
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from .core.config import get_settings
 from .db import get_db
 from .models import User
+from .request_context import set_authenticated_user
 
 settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -35,7 +36,7 @@ def create_access_token(subject: str, expires_minutes: int | None = None) -> str
     )
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+def get_current_user(request: Request, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="로그인이 필요합니다.", headers={"WWW-Authenticate": "Bearer"})
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
@@ -51,4 +52,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.get(User, subject_id)
     if not user or not user.is_active:
         raise credentials_exception
+    request.state.user_id = str(user.id)
+    route = request.scope.get("route")
+    set_authenticated_user(str(user.id), getattr(route, "path", None))
     return user

@@ -7,6 +7,7 @@ from pathlib import Path
 TEST_ROOT = tempfile.TemporaryDirectory(prefix="interior-simulation-test-")
 os.environ["DATABASE_URL"] = f"sqlite:///{Path(TEST_ROOT.name, 'test.db').as_posix()}"
 os.environ["MEDIA_DIR"] = str(Path(TEST_ROOT.name, "media"))
+os.environ["STORAGE_BACKEND"] = "local"
 os.environ["ADMIN_LOGIN_ID"] = "simulation-test"
 os.environ["ADMIN_PASSWORD"] = "test-password"
 

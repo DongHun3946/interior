@@ -1371,7 +1371,7 @@ function InquiryDetail({
               </button>
             </div>
           </div>
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <div className="mt-6 grid gap-4 md:grid-cols-3 xl:grid-cols-5">
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-[#718078]">
                 진행 상태
@@ -1399,6 +1399,24 @@ function InquiryDetail({
               <p className="value-text pt-2 text-base">
                 {pyeong(inquiry.area_pyeong)} ·{" "}
                 {inquiry.housing_type || "유형 미정"}
+              </p>
+            </div>
+            <div>
+              <p className="mb-1.5 block text-sm font-semibold text-[#718078]">
+                희망 공사 시작일
+              </p>
+              <p className="value-text pt-2 text-base">
+                {dateText(inquiry.desired_start_date)}
+              </p>
+            </div>
+            <div>
+              <p className="mb-1.5 block text-sm font-semibold text-[#718078]">
+                상담 일정
+              </p>
+              <p className="value-text pt-2 text-base">
+                {inquiry.consultation_date
+                  ? dateTimeText(inquiry.consultation_date)
+                  : "미정"}
               </p>
             </div>
           </div>

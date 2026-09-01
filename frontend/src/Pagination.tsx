@@ -33,7 +33,7 @@ export default function Pagination({
       </span>
       <button
         type="button"
-        className="btn-secondary h-9 px-3"
+        className="btn-secondary h-11 px-3"
         disabled={page <= 1 || loading}
         onClick={() => move(Math.max(1, page - 1))}
       >
@@ -41,7 +41,7 @@ export default function Pagination({
       </button>
       <button
         type="button"
-        className="btn-secondary h-9 px-3"
+        className="btn-secondary h-11 px-3"
         disabled={page >= totalPages || loading}
         onClick={() => move(Math.min(totalPages, page + 1))}
       >

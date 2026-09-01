@@ -75,7 +75,7 @@ export default function PhotoViewerModal({
             <div className="flex items-center overflow-hidden rounded-xl border border-white/15 bg-white/8">
               <button
                 type="button"
-                className="flex h-10 w-10 items-center justify-center text-white/80 transition hover:bg-white/10 hover:text-white disabled:cursor-default disabled:opacity-35"
+                className="flex h-11 w-11 items-center justify-center text-white/80 transition hover:bg-white/10 hover:text-white disabled:cursor-default disabled:opacity-35"
                 disabled={zoom <= MIN_ZOOM}
                 onClick={() => changeZoom(zoom - ZOOM_STEP)}
                 aria-label="사진 축소"
@@ -85,7 +85,7 @@ export default function PhotoViewerModal({
               </button>
               <button
                 type="button"
-                className="flex h-10 min-w-16 items-center justify-center gap-1 border-x border-white/10 px-2 text-xs font-bold text-white transition hover:bg-white/10"
+                className="flex h-11 min-w-16 items-center justify-center gap-1 border-x border-white/10 px-2 text-xs font-bold text-white transition hover:bg-white/10"
                 onClick={() => setZoom(100)}
                 aria-label="사진 배율 초기화"
                 title="배율 초기화 (0)"
@@ -94,7 +94,7 @@ export default function PhotoViewerModal({
               </button>
               <button
                 type="button"
-                className="flex h-10 w-10 items-center justify-center text-white/80 transition hover:bg-white/10 hover:text-white disabled:cursor-default disabled:opacity-35"
+                className="flex h-11 w-11 items-center justify-center text-white/80 transition hover:bg-white/10 hover:text-white disabled:cursor-default disabled:opacity-35"
                 disabled={zoom >= MAX_ZOOM}
                 onClick={() => changeZoom(zoom + ZOOM_STEP)}
                 aria-label="사진 확대"
@@ -105,7 +105,7 @@ export default function PhotoViewerModal({
             </div>
             <button
               type="button"
-              className="flex h-10 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/8 px-3 text-xs font-bold text-white transition hover:bg-white/15"
+              className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/8 px-3 text-xs font-bold text-white transition hover:bg-white/15"
               onClick={() => window.print()}
               aria-label="사진 인쇄"
             >
@@ -114,7 +114,7 @@ export default function PhotoViewerModal({
             </button>
             <button
               type="button"
-              className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition hover:bg-white/10 hover:text-white sm:static sm:h-10 sm:w-10 sm:border sm:border-white/15 sm:bg-white/8"
+              className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-xl text-white/70 transition hover:bg-white/10 hover:text-white sm:static sm:border sm:border-white/15 sm:bg-white/8"
               onClick={onClose}
               aria-label="사진 닫기"
             >
@@ -199,8 +199,11 @@ export default function PhotoViewerModal({
               onDoubleClick={() => setZoom((current) => (current === 100 ? 200 : 100))}
             />
           </div>
-          <span className="photo-viewer-help pointer-events-none sticky bottom-0 left-1/2 inline-flex -translate-x-1/2 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-[10px] font-semibold text-white/75 shadow-lg backdrop-blur-sm">
-            마우스 휠로 확대·축소 · 확대 후 드래그로 이동
+          <span className="photo-viewer-help pointer-events-none sticky bottom-0 left-1/2 inline-flex -translate-x-1/2 whitespace-nowrap rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-[10px] font-semibold text-white/75 shadow-lg backdrop-blur-sm">
+            <span className="sm:hidden">버튼으로 확대 · 확대 후 드래그로 이동</span>
+            <span className="hidden sm:inline">
+              마우스 휠로 확대·축소 · 확대 후 드래그로 이동
+            </span>
           </span>
         </div>
       </div>

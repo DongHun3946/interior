@@ -130,7 +130,7 @@ export default function PhotoClassificationEditor({
         <button
           type="button"
           disabled={disabled}
-          className="flex w-9 shrink-0 items-center justify-center text-[#7f8d84] transition hover:bg-[#f1f5f1] disabled:cursor-not-allowed"
+          className="flex w-11 shrink-0 items-center justify-center text-[#7f8d84] transition hover:bg-[#f1f5f1] disabled:cursor-not-allowed sm:w-10"
           aria-label="사진 분류 목록 열기"
           onClick={() => {
             const nextOpen = !open;
@@ -146,7 +146,7 @@ export default function PhotoClassificationEditor({
         <button
           type="submit"
           disabled={disabled || draft.trim() === value}
-          className="flex w-10 shrink-0 items-center justify-center bg-[#244c38] text-white transition hover:bg-[#18372b] disabled:cursor-default disabled:bg-[#dfe7e1] disabled:text-[#91a097]"
+          className="flex w-11 shrink-0 items-center justify-center bg-[#244c38] text-white transition hover:bg-[#18372b] disabled:cursor-default disabled:bg-[#dfe7e1] disabled:text-[#91a097] sm:w-10"
           aria-label="사진 분류 적용"
           title="분류 적용"
         >
@@ -171,7 +171,7 @@ export default function PhotoClassificationEditor({
             {isNewClassification && (
               <button
                 type="button"
-                className="flex w-full items-center gap-2 rounded-xl bg-[#edf5ee] px-3 py-2.5 text-left text-xs font-bold text-[#28543a] transition hover:bg-[#e3efe5]"
+                className="flex min-h-11 w-full items-center gap-2 rounded-xl bg-[#edf5ee] px-3 py-2.5 text-left text-xs font-bold text-[#28543a] transition hover:bg-[#e3efe5]"
                 onClick={() => save(normalizedDraft)}
               >
                 <Plus size={14} strokeWidth={2.5} />
@@ -188,7 +188,7 @@ export default function PhotoClassificationEditor({
                   role="option"
                   aria-selected={selected}
                   key={option}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs transition ${
+                  className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs transition ${
                     selected
                       ? "bg-[#edf5ee] font-bold text-[#214c33]"
                       : "font-medium text-[#43564a] hover:bg-[#f5f8f5]"

@@ -79,6 +79,20 @@ export default function PublicPortfolio() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  useEffect(() => {
+    if (lightbox === null) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLightbox(null);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [lightbox]);
+
   const marker = useMemo(
     () =>
       selected?.latitude && selected?.longitude
@@ -119,6 +133,7 @@ export default function PublicPortfolio() {
             <div className="h-[42vh] min-h-80 w-full bg-[#eef1f3]">
               <img
                 src={mediaUrl(selected.cover_image.original_url)}
+                alt={`${selected.title} 대표 사진`}
                 className="h-full w-full object-cover"
               />
             </div>
@@ -163,12 +178,15 @@ export default function PublicPortfolio() {
               <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3">
                 {selected.images.map((image, index) => (
                   <button
+                    type="button"
                     key={image.id}
                     onClick={() => setLightbox(index)}
                     className="group relative aspect-square overflow-hidden rounded-2xl bg-[#eef1f3]"
+                    aria-label={`${selected.title} ${image.classification || "현장"} 사진 크게 보기`}
                   >
                     <img
                       src={mediaUrl(image.thumbnail_url)}
+                      alt={`${selected.title} ${image.classification || "현장"} 사진`}
                       className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                     />
                     {image.classification && (
@@ -196,16 +214,27 @@ export default function PublicPortfolio() {
           </div>
         </main>
         {lightbox !== null && selected.images[lightbox] && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-2 sm:p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="사진 크게 보기"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setLightbox(null);
+            }}
+          >
             <button
-              className="absolute right-5 top-5 rounded-full bg-white/10 p-2 text-white"
+              type="button"
+              className="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/75 sm:right-5 sm:top-5"
               onClick={() => setLightbox(null)}
+              aria-label="사진 닫기"
             >
               <X />
             </button>
             <img
               src={mediaUrl(selected.images[lightbox].original_url)}
-              className="max-h-[90vh] max-w-full object-contain"
+              alt={`${selected.title} ${selected.images[lightbox].classification || "현장"} 사진`}
+              className="max-h-[calc(100dvh-1rem)] max-w-full object-contain sm:max-h-[90vh]"
             />
           </div>
         )}
@@ -255,6 +284,7 @@ export default function PublicPortfolio() {
                     {item.cover_image ? (
                       <img
                         src={mediaUrl(item.cover_image.thumbnail_url)}
+                        alt={`${item.title} 대표 사진`}
                         className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                       />
                     ) : (

@@ -13,7 +13,7 @@ button { cursor: pointer; }
 .print-sheet { display: none; }
 @media (max-width: 1023px) {
   .mobile-bottom-nav { position: fixed; z-index: 25; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 9px 8px max(9px, env(safe-area-inset-bottom)); border-top: 1px solid #e8ebed; background: rgba(255,255,255,.96); box-shadow: 0 -6px 24px rgba(31, 42, 52,.07); backdrop-filter: blur(16px); }
-  .mobile-bottom-safe { padding-bottom: 82px; }
+  .mobile-bottom-safe { padding-bottom: calc(82px + env(safe-area-inset-bottom)); }
 }
 
 /* Screen typography: keep dense admin information readable without affecting print layouts. */

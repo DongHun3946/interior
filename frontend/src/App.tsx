@@ -71,6 +71,7 @@ import IntegerInput from "./IntegerInput";
 import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
 import PhotoClassificationEditor from "./PhotoClassificationEditor";
 import PhotoLibrary from "./PhotoLibrary";
+import PhotoViewerModal from "./PhotoViewerModal";
 import ConfirmModal from "./ConfirmModal";
 import Modal from "./Modal";
 import Pagination from "./Pagination";
@@ -520,7 +521,12 @@ function Sidebar({
             </p>
             <p className="serif mt-1 text-xl">Studio desk</p>
           </div>
-          <button className="lg:hidden" onClick={closeMobile}>
+          <button
+            type="button"
+            className="flex h-11 w-11 items-center justify-center rounded-xl text-white/80 transition hover:bg-white/10 hover:text-white lg:hidden"
+            onClick={closeMobile}
+            aria-label="메뉴 닫기"
+          >
             <X size={20} />
           </button>
         </div>
@@ -623,8 +629,9 @@ function Header({ title, onMenu }: { title: string; onMenu: () => void }) {
     <header className="flex items-center justify-between border-b border-[#e6eae5] bg-white px-5 py-4 sm:px-8">
       <div className="flex items-center gap-3">
         <button
-          className="rounded-lg p-1 text-[#54705e] lg:hidden"
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-[#54705e] hover:bg-[#f1f5f2] lg:hidden"
           onClick={onMenu}
+          aria-label="메뉴 열기"
         >
           <Menu size={21} />
         </button>
@@ -2776,6 +2783,8 @@ function DetailPage({
   >(initialTab);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [previewImage, setPreviewImage] = useState<Image | null>(null);
   const [imageToDelete, setImageToDelete] = useState<Image | null>(null);
   const [photoClassificationFilter, setPhotoClassificationFilter] =
     useState("");
@@ -2823,24 +2832,62 @@ function DetailPage({
       setPhotoClassificationFilter("");
   }, [photoClassificationFilter, project]);
   const upload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const input = event.currentTarget;
+    const files = Array.from(input.files || []);
+    if (!files.length) return;
+
+    const supportedTypes = new Set([
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+    ]);
+    const supportedExtension = /\.(jpe?g|png|webp|gif)$/i;
+    const unsupportedFile = files.find(
+      (file) =>
+        !supportedTypes.has(file.type) && !supportedExtension.test(file.name),
+    );
+    if (unsupportedFile) {
+      setError(`${unsupportedFile.name}: JPG, PNG, WEBP, GIF 형식만 등록할 수 있습니다.`);
+      input.value = "";
+      return;
+    }
+    const oversizedFile = files.find((file) => file.size > 15 * 1024 * 1024);
+    if (oversizedFile) {
+      setError(`${oversizedFile.name}: 사진은 한 장당 15MB 이하여야 합니다.`);
+      input.value = "";
+      return;
+    }
+
     setUploading(true);
+    setUploadProgress({ current: 0, total: files.length });
+    setError("");
+    const needsCover = !project?.images.some((image) => image.is_cover);
+    let uploadedCount = 0;
     try {
-      await api.uploadImage(
-        id,
-        file,
-        project?.status === "COMPLETED" ? "AFTER" : "PROGRESS",
-        !project?.images.some((i) => i.is_cover),
-        Boolean(project?.is_public),
+      for (const [index, file] of files.entries()) {
+        await api.uploadImage(
+          id,
+          file,
+          project?.status === "COMPLETED" ? "AFTER" : "PROGRESS",
+          needsCover && index === 0,
+          Boolean(project?.is_public),
+        );
+        uploadedCount += 1;
+        setUploadProgress({ current: index + 1, total: files.length });
+      }
+      showSuccessToast(
+        files.length === 1
+          ? "사진을 등록했습니다."
+          : `사진 ${files.length}장을 등록했습니다.`,
       );
-      load();
-      showSuccessToast("사진을 등록했습니다.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "업로드에 실패했습니다.");
     } finally {
+      if (uploadedCount > 0) load();
       setUploading(false);
-      event.target.value = "";
+      setUploadProgress({ current: 0, total: 0 });
+      input.value = "";
     }
   };
   const addPayment = async (event: FormEvent) => {
@@ -2976,6 +3023,15 @@ function DetailPage({
   const paidPayments = payments?.items || [];
   return (
     <div className="space-y-6 p-5 sm:p-8">
+      {previewImage && (
+        <PhotoViewerModal
+          imageUrl={mediaUrl(previewImage.original_url)}
+          alt={`${project.title} ${previewImage.classification || "현장"} 사진`}
+          projectTitle={project.title}
+          classification={previewImage.classification}
+          onClose={() => setPreviewImage(null)}
+        />
+      )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <button
@@ -3126,17 +3182,42 @@ function DetailPage({
                 JPG, PNG, WEBP · 최대 15MB
               </p>
             </div>
-            <label className="btn-primary cursor-pointer">
-              <Upload size={16} />
-              {uploading ? "업로드 중…" : "사진 업로드"}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={upload}
-                disabled={uploading}
-              />
-            </label>
+            <div className="grid w-full gap-2 sm:flex sm:w-auto">
+              <label
+                className={`btn-primary min-h-11 cursor-pointer px-4 ${
+                  uploading ? "pointer-events-none opacity-60" : ""
+                }`}
+              >
+                <Camera size={17} />
+                {uploading
+                  ? `업로드 중 ${uploadProgress.current}/${uploadProgress.total}`
+                  : "카메라 촬영"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  capture="environment"
+                  className="hidden"
+                  onChange={upload}
+                  disabled={uploading}
+                />
+              </label>
+              <label
+                className={`btn-secondary min-h-11 cursor-pointer px-4 ${
+                  uploading ? "pointer-events-none opacity-60" : ""
+                }`}
+              >
+                <Upload size={17} />
+                사진 선택
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  multiple
+                  className="hidden"
+                  onChange={upload}
+                  disabled={uploading}
+                />
+              </label>
+            </div>
           </div>
           {error && (
             <p className="rounded-xl bg-[#fff0ef] px-4 py-3 text-sm text-[#a14e4e]">
@@ -3152,7 +3233,7 @@ function DetailPage({
                   </span>
                   <button
                     type="button"
-                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    className={`min-h-10 rounded-full px-3 py-2 text-xs font-semibold transition ${
                       !photoClassificationFilter
                         ? "bg-[#18372b] text-white"
                         : "border border-[#d4ded6] bg-white text-[#52675a] hover:bg-[#f2f6f3]"
@@ -3169,7 +3250,7 @@ function DetailPage({
                       <button
                         type="button"
                         key={classification}
-                        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                        className={`min-h-10 rounded-full px-3 py-2 text-xs font-semibold transition ${
                           photoClassificationFilter === classification
                             ? "bg-[#18372b] text-white"
                             : "border border-[#d4ded6] bg-white text-[#52675a] hover:bg-[#f2f6f3]"
@@ -3185,7 +3266,7 @@ function DetailPage({
                   {unclassifiedPhotoCount > 0 && (
                     <button
                       type="button"
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                      className={`min-h-10 rounded-full px-3 py-2 text-xs font-semibold transition ${
                         photoClassificationFilter === "__unclassified__"
                           ? "bg-[#18372b] text-white"
                           : "border border-[#d4ded6] bg-white text-[#52675a] hover:bg-[#f2f6f3]"
@@ -3204,30 +3285,43 @@ function DetailPage({
                   {filteredPhotos.map((image) => (
                     <div key={image.id} className="panel overflow-hidden">
                       <div className="group relative aspect-square bg-[#edf2ed]">
-                        <img
-                          src={mediaUrl(image.thumbnail_url)}
-                          className="h-full w-full object-cover"
-                        />
+                        <button
+                          type="button"
+                          className="absolute inset-0 h-full w-full cursor-zoom-in overflow-hidden text-left focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#628b72]"
+                          onClick={() => setPreviewImage(image)}
+                          aria-label={`${project.title} 사진 크게 보기`}
+                        >
+                          <img
+                            src={mediaUrl(image.thumbnail_url)}
+                            alt={`${project.title} ${image.classification || "현장"} 사진`}
+                            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.025]"
+                          />
+                          <span className="absolute bottom-2.5 right-2.5 flex h-10 w-10 items-center justify-center rounded-xl bg-black/55 text-white shadow-sm backdrop-blur-sm transition sm:opacity-0 sm:group-hover:opacity-100">
+                            <Maximize2 size={16} />
+                          </span>
+                        </button>
                         {image.classification && (
-                          <span className="absolute bottom-3 left-3 rounded-lg bg-black/60 px-2 py-1 text-[11px] font-semibold text-white">
+                          <span className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-lg bg-black/60 px-2 py-1 text-[11px] font-semibold text-white">
                             {image.classification}
                           </span>
                         )}
                         {image.is_cover && (
-                          <span className="absolute bottom-3 right-3 rounded bg-white/90 px-1.5 py-0.5 text-[9px] font-bold text-[#355d40] shadow-sm">
+                          <span className="pointer-events-none absolute bottom-3 right-14 z-10 rounded bg-white/90 px-1.5 py-0.5 text-[9px] font-bold text-[#355d40] shadow-sm">
                             대표
                           </span>
                         )}
                         <button
-                          className="absolute right-2 top-2 rounded-lg bg-black/45 p-1.5 text-white opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100"
+                          type="button"
+                          className="absolute right-2 top-2 z-10 flex h-10 w-10 items-center justify-center rounded-xl bg-black/55 text-white shadow-sm transition hover:bg-black/70"
                           onClick={() => setImageToDelete(image)}
                           aria-label="사진 삭제"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={16} />
                         </button>
-                        <div className="absolute left-2 top-2 flex gap-1 opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100">
+                        <div className="absolute left-2 top-2 z-10 flex gap-1.5">
                           <button
-                            className={`rounded-lg px-2 py-1 text-[10px] font-semibold ${image.is_public ? "bg-[#3d7650] text-white" : "bg-white/90 text-[#355d40]"}`}
+                            type="button"
+                            className={`min-h-10 rounded-xl px-3 py-2 text-xs font-semibold shadow-sm ${image.is_public ? "bg-[#3d7650] text-white" : "bg-white/95 text-[#355d40]"}`}
                             onClick={async () => {
                               await api.updateImage(id, image.id, {
                                 is_public: !image.is_public,
@@ -3244,7 +3338,8 @@ function DetailPage({
                           </button>
                           {!image.is_cover && (
                             <button
-                              className="rounded-lg bg-white/90 px-2 py-1 text-[10px] font-semibold text-[#355d40]"
+                              type="button"
+                              className="min-h-10 rounded-xl bg-white/95 px-3 py-2 text-xs font-semibold text-[#355d40] shadow-sm"
                               onClick={async () => {
                                 await api.updateImage(id, image.id, {
                                   is_cover: true,

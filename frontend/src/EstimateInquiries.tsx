@@ -764,7 +764,7 @@ function EstimateEditor({
           </div>
         </div>
         <div className="space-y-3 p-4 sm:p-6">
-          <div className="hidden grid-cols-[1.2fr_1fr_70px_80px_120px_120px_1fr_42px] gap-2 px-2 text-xs font-semibold text-[#75827a] lg:grid">
+          <div className="hidden grid-cols-[1.2fr_1fr_70px_80px_120px_120px_1fr_42px] gap-2 px-2 text-xs font-semibold text-[#75827a] xl:grid">
             <span>품명</span>
             <span>규격</span>
             <span>단위</span>
@@ -777,7 +777,7 @@ function EstimateEditor({
           {lines.map((line, index) => (
             <div
               key={index}
-              className="grid gap-2 rounded-xl border border-[#e5eae5] bg-[#fbfcfa] p-3 lg:grid-cols-[1.2fr_1fr_70px_80px_120px_120px_1fr_42px]"
+              className="grid gap-2 rounded-xl border border-[#e5eae5] bg-[#fbfcfa] p-3 xl:grid-cols-[1.2fr_1fr_70px_80px_120px_120px_1fr_42px]"
             >
               <input
                 className="field px-2 py-2"
@@ -1420,7 +1420,7 @@ function InquiryDetail({
           )}
         </section>
 
-        <section className="grid gap-5 lg:grid-cols-[280px_1fr]">
+        <section className="grid gap-5 xl:grid-cols-[280px_1fr]">
           <div className="panel overflow-hidden">
             <div className="flex items-center justify-between border-b border-[#edf0ed] p-4">
               <div>
@@ -2183,7 +2183,7 @@ export default function EstimateInquiriesPage({
                 <button
                   key={item.id}
                   onClick={() => open(item.id)}
-                  className="grid w-full gap-3 p-5 text-left transition hover:bg-[#fafbf9] md:grid-cols-[1.05fr_1fr_360px_150px_24px] md:items-center"
+                  className="grid w-full gap-3 p-5 text-left transition hover:bg-[#fafbf9] xl:grid-cols-[1.05fr_1fr_360px_150px_24px] xl:items-center"
                 >
                   <div>
                     <div className="flex items-center gap-2">
@@ -2239,7 +2239,7 @@ export default function EstimateInquiriesPage({
                   </div>
                   <ChevronRight
                     size={17}
-                    className="hidden text-[#93a098] md:block"
+                    className="hidden text-[#93a098] xl:block"
                   />
                 </button>
               ))}

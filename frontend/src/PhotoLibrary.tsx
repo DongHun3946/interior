@@ -69,7 +69,7 @@ function PhotoCard({
             alt={`${image.project_title} ${image.classification || "현장"} 사진`}
             className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.025]"
           />
-          <span className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-xl bg-black/55 text-white opacity-100 shadow-sm backdrop-blur-sm transition sm:opacity-0 sm:group-hover:opacity-100">
+          <span className="absolute bottom-2.5 right-2.5 flex h-10 w-10 items-center justify-center rounded-xl bg-black/55 text-white opacity-100 shadow-sm backdrop-blur-sm transition sm:opacity-0 sm:group-hover:opacity-100">
             <Maximize2 size={15} />
           </span>
         </button>
@@ -88,7 +88,7 @@ function PhotoCard({
         <button
           type="button"
           disabled={saving}
-          className={`absolute right-2.5 top-2.5 flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold shadow-sm backdrop-blur-sm transition disabled:cursor-wait disabled:opacity-60 ${
+          className={`absolute right-2.5 top-2.5 flex min-h-10 items-center gap-1 rounded-xl px-3 py-2 text-xs font-bold shadow-sm backdrop-blur-sm transition disabled:cursor-wait disabled:opacity-60 ${
             image.is_public
               ? "border border-white/30 bg-[rgba(47,113,72,0.92)] text-white shadow-[0_2px_8px_rgba(16,38,25,.28)] hover:bg-[#2b633e]"
               : "border border-white/25 bg-[rgba(35,48,40,0.88)] text-white shadow-[0_2px_8px_rgba(16,38,25,.30)] hover:bg-[#1f2d25]"
@@ -315,7 +315,7 @@ export default function PhotoLibrary({
               <button
                 key={value}
                 type="button"
-                className={`rounded-lg px-3.5 py-2 text-xs font-bold transition sm:px-4 ${
+                className={`min-h-11 rounded-lg px-3.5 py-2 text-xs font-bold transition sm:px-4 ${
                   view === value
                     ? "bg-[#294c35] text-white shadow-sm"
                     : "text-[#718078] hover:bg-[#f2f6f2]"
@@ -449,7 +449,7 @@ export default function PhotoLibrary({
                 </div>
                 <button
                   type="button"
-                  className="btn-secondary self-start px-3 py-2 text-xs sm:self-auto"
+                  className="btn-secondary min-h-11 self-start px-3 py-2 text-xs sm:self-auto"
                   onClick={() => onOpenProjectPhotos(groupProjectId)}
                 >
                   현장 사진 열기 <ArrowRight size={14} />

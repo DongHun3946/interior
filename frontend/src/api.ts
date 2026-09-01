@@ -28,7 +28,9 @@ import type {
 } from "./types";
 import { ApiError, reportAppError, toUserFacingError } from "./errors";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// Production uses the current origin and lets the edge proxy route /api and
+// /media to FastAPI. run-local.sh supplies localhost:8000 for development.
+const API = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const token = () => localStorage.getItem("interior_token");
 const AUTH_EXPIRED_EVENT = "interior:auth-expired";
 

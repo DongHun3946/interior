@@ -1,0 +1,40 @@
+AWS LIGHTSAIL PRODUCTION DEPLOYMENT
+
+Prerequisites
+- Ubuntu instance with a static IPv4 address
+- DNS A records for @ and www pointing to that static IP
+- Lightsail firewall ports 22, 80, and 443 open
+- Git, Docker Engine, and Docker Compose installed
+
+Before the first start
+1. Copy .env.production.example to .env.production.
+2. Keep DOMAIN as jeil-interior.win (without www, https://, or a trailing slash).
+3. Replace POSTGRES_PASSWORD, SECRET_KEY, and ADMIN_PASSWORD.
+   Generate random values with: openssl rand -hex 32
+4. Keep the Cloudflare records in DNS-only mode (grey cloud) for the first certificate issuance.
+
+Start
+  docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+
+Check
+  docker compose --env-file .env.production -f docker-compose.prod.yml ps
+  docker compose --env-file .env.production -f docker-compose.prod.yml logs -f caddy backend
+  curl -I https://YOUR_DOMAIN/health
+
+After HTTPS works
+- Cloudflare proxy may be enabled (orange cloud).
+- Set Cloudflare SSL/TLS encryption mode to Full (strict).
+- Do not open ports 5173, 8000, or 5432 in the Lightsail firewall.
+
+Update
+  git pull
+  docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+
+Stop
+  docker compose --env-file .env.production -f docker-compose.prod.yml down
+
+Important data
+- PostgreSQL is stored in the Docker volume named interior_prod_postgres_data
+  (or the POSTGRES_VOLUME_NAME value).
+- Uploaded local media is stored in backend/media.
+- Back up both before destructive maintenance or instance replacement.

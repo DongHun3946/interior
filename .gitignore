@@ -2,6 +2,8 @@ __pycache__/
 *.py[cod]
 .venv/
 .env
+.env.*
+!.env.*.example
 backend/media/
 frontend/node_modules/
 node_modules/

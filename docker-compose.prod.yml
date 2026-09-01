@@ -1,0 +1,96 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-interior}
+      POSTGRES_USER: ${POSTGRES_USER:-interior}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-interior} -d ${POSTGRES_DB:-interior}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${POSTGRES_DB:-interior}
+      DATABASE_USER: ${POSTGRES_USER:-interior}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
+      ADMIN_LOGIN_ID: ${ADMIN_LOGIN_ID:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
+      MANAGEMENT_OVERVIEW_PASSWORD: ${MANAGEMENT_OVERVIEW_PASSWORD:-}
+      CORS_ORIGINS: https://${DOMAIN:?DOMAIN must be set},https://www.${DOMAIN}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      REQUEST_LOG_ENABLED: ${REQUEST_LOG_ENABLED:-true}
+      LOG_HEALTH_CHECKS: ${LOG_HEALTH_CHECKS:-false}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      MEDIA_DIR: /app/media
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
+      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:-}
+      NAVER_MAPS_CLIENT_ID: ${NAVER_MAPS_CLIENT_ID:-}
+      NAVER_MAPS_CLIENT_SECRET: ${NAVER_MAPS_CLIENT_SECRET:-}
+    expose:
+      - "8000"
+    volumes:
+      - ./backend/media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ""
+        VITE_NAVER_MAP_KEY_ID: ${NAVER_MAPS_CLIENT_ID:-}
+        VITE_ENABLE_SIMULATION: ${VITE_ENABLE_SIMULATION:-false}
+    restart: unless-stopped
+    expose:
+      - "80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN must be set}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+
+volumes:
+  postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-interior_prod_postgres_data}
+  caddy_data:
+  caddy_config:

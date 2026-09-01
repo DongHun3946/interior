@@ -1,0 +1,13 @@
+{$DOMAIN}, www.{$DOMAIN} {
+	encode zstd gzip
+
+	@backend path /api/* /media/* /health
+	reverse_proxy @backend backend:8000
+	reverse_proxy frontend:80
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}

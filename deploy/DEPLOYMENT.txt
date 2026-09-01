@@ -14,7 +14,7 @@ Before the first start
 4. Keep the Cloudflare records in DNS-only mode (grey cloud) for the first certificate issuance.
 
 Start
-  docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+  bash ./run-production.sh
 
 Check
   docker compose --env-file .env.production -f docker-compose.prod.yml ps
@@ -27,8 +27,7 @@ After HTTPS works
 - Do not open ports 5173, 8000, or 5432 in the Lightsail firewall.
 
 Update
-  git pull
-  docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+  bash ./run-production.sh
 
 Stop
   docker compose --env-file .env.production -f docker-compose.prod.yml down

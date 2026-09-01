@@ -58,7 +58,9 @@ def _object_key(folder: str, content_type: str, filename: str) -> str:
     suffix = CONTENT_TYPE_SUFFIXES.get(content_type) or Path(filename).suffix.lower()
     if not suffix:
         suffix = mimetypes.guess_extension(content_type) or ""
-    return f"{_validated_folder(folder)}/{uuid.uuid4().hex}{suffix}"
+    prefix = settings.storage_prefix.strip().strip("/\\")
+    storage_folder = "/".join(part for part in (prefix, folder) if part)
+    return f"{_validated_folder(storage_folder)}/{uuid.uuid4().hex}{suffix}"
 
 
 def validate_storage_configuration() -> None:

@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     request_log_enabled: bool = True
     log_health_checks: bool = False
     storage_backend: Literal["local", "r2"] = "local"
+    storage_prefix: str = ""
     media_dir: str = "media"
     max_upload_size: int = 15 * 1024 * 1024
     max_scan_upload_size: int = 500 * 1024 * 1024

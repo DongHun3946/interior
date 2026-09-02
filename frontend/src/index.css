@@ -4,9 +4,14 @@
 
 :root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif; color: #191f28; background: #f6f7f8; font-synthesis: none; }
 * { box-sizing: border-box; }
+html, body, #root { width: 100%; max-width: 100%; overflow-x: hidden; overscroll-behavior-x: none; }
+@supports (overflow: clip) {
+  html, body, #root { overflow-x: clip; }
+}
 body { margin: 0; min-width: 320px; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
+.overflow-x-auto { overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
 .serif { font-family: inherit; font-weight: 750; letter-spacing: -.04em; }
 .noise { background: #f6f7f8; }
 .mobile-bottom-nav { display: none; }

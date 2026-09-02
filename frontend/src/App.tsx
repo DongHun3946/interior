@@ -395,8 +395,8 @@ function Login({ onLogin }: { onLogin: () => void }) {
     }
   };
   return (
-    <main className="noise flex min-h-screen items-center justify-center bg-[#eff3ec] px-5 py-10">
-      <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-[0_30px_100px_rgba(26,55,40,.16)] lg:grid-cols-[1fr_410px]">
+    <main className="noise flex h-[100dvh] items-center justify-center overflow-hidden bg-[#eff3ec] px-4 py-4 sm:px-5 sm:py-8 lg:h-auto lg:min-h-screen lg:overflow-visible lg:py-10">
+      <div className="grid max-h-full w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-[0_30px_100px_rgba(26,55,40,.16)] lg:max-h-none lg:grid-cols-[1fr_410px]">
         <div className="relative hidden min-h-[600px] overflow-hidden bg-[#17372b] p-12 text-white lg:block">
           <div className="absolute -right-20 -top-24 h-80 w-80 rounded-full border border-white/10" />
           <div className="absolute bottom-12 left-12 h-28 w-28 rounded-full border border-white/10" />
@@ -422,16 +422,18 @@ function Login({ onLogin }: { onLogin: () => void }) {
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-center p-8 sm:p-14">
+        <div className="flex items-center justify-center p-6 sm:p-10 lg:p-14">
           <form onSubmit={submit} className="w-full max-w-sm">
-            <div className="mb-10">
-              <div className="mb-5 flex items-center gap-2 text-[#17372b]">
+            <div className="mb-7 sm:mb-10">
+              <div className="mb-4 flex items-center gap-2 text-[#17372b] sm:mb-5">
                 <div className="rounded-lg bg-[#dfeee1] p-2">
                   <House size={18} />
                 </div>
                 <span className="font-bold tracking-tight">Jeil Interior</span>
               </div>
-              <h2 className="serif text-3xl text-[#1b3025]">다시 오셨군요.</h2>
+              <h2 className="serif text-2xl text-[#1b3025] sm:text-3xl">
+                다시 오셨군요.
+              </h2>
               <p className="mt-2 text-sm text-[#7c887f]">
                 관리자 계정으로 현장에 접속하세요.
               </p>
@@ -469,7 +471,7 @@ function Login({ onLogin }: { onLogin: () => void }) {
               </p>
             )}
             <button
-              className="btn-primary mt-7 w-full py-3.5"
+              className="btn-primary mt-6 w-full py-3.5 sm:mt-7"
               disabled={loading}
             >
               {loading ? "접속 중…" : "워크스페이스 열기"}

@@ -57,10 +57,45 @@ button {
 }
 .app-header {
   padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+  padding-left: max(0.75rem, env(safe-area-inset-left));
 }
 .app-sidebar {
   padding-top: max(1.75rem, env(safe-area-inset-top));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
   padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
+  padding-left: max(1.25rem, env(safe-area-inset-left));
+}
+.safe-area-overlay {
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+  padding-right: max(0.5rem, env(safe-area-inset-right));
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  padding-left: max(0.5rem, env(safe-area-inset-left));
+}
+.safe-area-modal {
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-left: env(safe-area-inset-left);
+}
+.safe-area-toast {
+  top: calc(1rem + env(safe-area-inset-top));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-left: max(1rem, env(safe-area-inset-left));
+}
+.safe-area-top-control {
+  top: max(0.75rem, env(safe-area-inset-top));
+  right: max(0.75rem, env(safe-area-inset-right));
+}
+.public-app-header {
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-left: env(safe-area-inset-left);
+}
+.safe-area-screen {
+  padding-top: max(1.25rem, env(safe-area-inset-top));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  padding-left: max(1.25rem, env(safe-area-inset-left));
 }
 .print-sheet {
   display: none;
@@ -68,6 +103,27 @@ button {
 @media (min-width: 640px) {
   .app-header {
     padding-top: max(1rem, env(safe-area-inset-top));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+  }
+  .safe-area-overlay {
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
+  .safe-area-modal {
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
+  .safe-area-toast {
+    top: calc(1.5rem + env(safe-area-inset-top));
+  }
+  .safe-area-top-control {
+    top: max(1.25rem, env(safe-area-inset-top));
+    right: max(1.25rem, env(safe-area-inset-right));
   }
 }
 @media (max-width: 1023px) {
@@ -80,7 +136,8 @@ button {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 2px;
-    padding: 9px 8px max(9px, env(safe-area-inset-bottom));
+    padding: 9px max(8px, env(safe-area-inset-right))
+      max(9px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
     border-top: 1px solid #e8ebed;
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 -6px 24px rgba(31, 42, 52, 0.07);
@@ -88,6 +145,8 @@ button {
   }
   .mobile-bottom-safe {
     padding-bottom: calc(82px + env(safe-area-inset-bottom));
+    padding-right: env(safe-area-inset-right);
+    padding-left: env(safe-area-inset-left);
   }
   button,
   a {
@@ -97,8 +156,16 @@ button {
 }
 @media (min-width: 640px) and (max-width: 1023px) {
   .mobile-bottom-nav {
-    padding-right: max(8px, calc((100vw - 720px) / 2));
-    padding-left: max(8px, calc((100vw - 720px) / 2));
+    padding-right: max(
+      8px,
+      env(safe-area-inset-right),
+      calc((100vw - 720px) / 2)
+    );
+    padding-left: max(
+      8px,
+      env(safe-area-inset-left),
+      calc((100vw - 720px) / 2)
+    );
   }
 }
 

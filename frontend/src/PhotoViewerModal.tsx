@@ -53,7 +53,7 @@ export default function PhotoViewerModal({
 
   return createPortal(
     <div
-      className="photo-viewer-overlay fixed inset-0 z-[200] flex items-center justify-center bg-[#101713]/90 p-2 backdrop-blur-sm sm:p-4"
+      className="photo-viewer-overlay safe-area-overlay fixed inset-0 z-[200] flex items-center justify-center bg-[#101713]/90 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -61,8 +61,8 @@ export default function PhotoViewerModal({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="photo-viewer-dialog flex h-[calc(100dvh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#17211b] shadow-[0_28px_80px_rgba(0,0,0,.48)] sm:h-[calc(100dvh-2rem)]">
-        <header className="photo-viewer-toolbar flex flex-col gap-3 border-b border-white/10 bg-[#1d2922] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+      <div className="photo-viewer-dialog flex h-full w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#17211b] shadow-[0_28px_80px_rgba(0,0,0,.48)]">
+        <header className="photo-viewer-toolbar relative flex flex-col gap-3 border-b border-white/10 bg-[#1d2922] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
           <div className="min-w-0 pr-10 sm:pr-0">
             <h2 id={titleId} className="truncate text-sm font-bold text-white">
               {projectTitle}
@@ -170,7 +170,8 @@ export default function PhotoViewerModal({
           onPointerMove={(event) => {
             const start = panStartRef.current;
             const canvas = canvasRef.current;
-            if (!start || !canvas || start.pointerId !== event.pointerId) return;
+            if (!start || !canvas || start.pointerId !== event.pointerId)
+              return;
             canvas.scrollLeft = start.scrollLeft - (event.clientX - start.x);
             canvas.scrollTop = start.scrollTop - (event.clientY - start.y);
           }}
@@ -196,11 +197,15 @@ export default function PhotoViewerModal({
               alt={alt}
               className="photo-viewer-image block h-auto w-full select-none object-contain shadow-[0_18px_55px_rgba(0,0,0,.42)]"
               draggable={false}
-              onDoubleClick={() => setZoom((current) => (current === 100 ? 200 : 100))}
+              onDoubleClick={() =>
+                setZoom((current) => (current === 100 ? 200 : 100))
+              }
             />
           </div>
           <span className="photo-viewer-help pointer-events-none sticky bottom-0 left-1/2 inline-flex -translate-x-1/2 whitespace-nowrap rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-[10px] font-semibold text-white/75 shadow-lg backdrop-blur-sm">
-            <span className="sm:hidden">버튼으로 확대 · 확대 후 드래그로 이동</span>
+            <span className="sm:hidden">
+              버튼으로 확대 · 확대 후 드래그로 이동
+            </span>
             <span className="hidden sm:inline">
               마우스 휠로 확대·축소 · 확대 후 드래그로 이동
             </span>

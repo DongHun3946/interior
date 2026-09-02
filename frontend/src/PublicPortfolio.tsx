@@ -114,7 +114,7 @@ export default function PublicPortfolio() {
   if (selected)
     return (
       <div className="min-h-screen bg-white text-[#191f28]">
-        <header className="sticky top-0 z-20 border-b border-[#244b3b] bg-[#17372b]/95 text-white backdrop-blur">
+        <header className="public-app-header sticky top-0 z-20 border-b border-[#244b3b] bg-[#17372b]/95 text-white backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
             <button
               onClick={() => goList()}
@@ -215,7 +215,7 @@ export default function PublicPortfolio() {
         </main>
         {lightbox !== null && selected.images[lightbox] && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-2 sm:p-4"
+            className="safe-area-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/90"
             role="dialog"
             aria-modal="true"
             aria-label="사진 크게 보기"
@@ -225,7 +225,7 @@ export default function PublicPortfolio() {
           >
             <button
               type="button"
-              className="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/75 sm:right-5 sm:top-5"
+              className="safe-area-top-control absolute z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/75"
               onClick={() => setLightbox(null)}
               aria-label="사진 닫기"
             >
@@ -234,7 +234,7 @@ export default function PublicPortfolio() {
             <img
               src={mediaUrl(selected.images[lightbox].original_url)}
               alt={`${selected.title} ${selected.images[lightbox].classification || "현장"} 사진`}
-              className="max-h-[calc(100dvh-1rem)] max-w-full object-contain sm:max-h-[90vh]"
+              className="max-h-full max-w-full object-contain"
             />
           </div>
         )}
@@ -243,7 +243,7 @@ export default function PublicPortfolio() {
 
   return (
     <div className="min-h-screen bg-[#f7f8fa] text-[#191f28]">
-      <header className="bg-[#17372b] text-white">
+      <header className="public-app-header bg-[#17372b] text-white">
         <div className="mx-auto flex max-w-6xl items-center px-4 py-4 sm:px-6 sm:py-5">
           <a href="/" className="font-bold tracking-[-.02em] text-white">
             Jeil Interior

@@ -514,7 +514,7 @@ function Sidebar({
   return (
     <>
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-64 transform flex-col overflow-y-auto bg-[#17372b] px-5 py-7 text-white transition-transform lg:static lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
+        className={`app-sidebar fixed inset-y-0 left-0 z-30 flex w-64 transform flex-col overflow-y-auto bg-[#17372b] px-5 py-7 text-white transition-transform lg:static lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="flex items-center justify-between px-2">
           <div>
@@ -628,7 +628,7 @@ function MobileBottomNav({
 
 function Header({ title, onMenu }: { title: string; onMenu: () => void }) {
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[#e6eae5] bg-white/95 px-3 py-3 backdrop-blur sm:px-6 sm:py-4 xl:px-8">
+    <header className="app-header sticky top-0 z-20 flex items-center justify-between border-b border-[#e6eae5] bg-white/95 px-3 py-3 backdrop-blur sm:px-6 sm:py-4 xl:px-8">
       <div className="flex items-center gap-3">
         <button
           className="flex h-10 w-10 items-center justify-center rounded-xl text-[#54705e] hover:bg-[#f1f5f2] sm:h-11 sm:w-11 lg:hidden"

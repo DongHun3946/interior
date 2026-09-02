@@ -55,8 +55,20 @@ button {
 .mobile-bottom-nav {
   display: none;
 }
+.app-header {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+.app-sidebar {
+  padding-top: max(1.75rem, env(safe-area-inset-top));
+  padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
+}
 .print-sheet {
   display: none;
+}
+@media (min-width: 640px) {
+  .app-header {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
 }
 @media (max-width: 1023px) {
   .mobile-bottom-nav {

@@ -9,7 +9,9 @@ import {
   Maximize2,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   Star,
+  X,
 } from "lucide-react";
 import { api, mediaUrl } from "./api";
 import DropdownSelect, { type DropdownOption } from "./DropdownSelect";
@@ -152,6 +154,7 @@ export default function PhotoLibrary({
   const [visibility, setVisibility] = useState<VisibilityFilter>("");
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [refreshKey, setRefreshKey] = useState(0);
   const [savingImageId, setSavingImageId] = useState<string | null>(null);
@@ -249,6 +252,7 @@ export default function PhotoLibrary({
     setVisibility("");
     setSearchInput("");
     setSearchQuery("");
+    setFiltersOpen(false);
     setPage(1);
   };
   const updatePhoto = async (
@@ -284,7 +288,7 @@ export default function PhotoLibrary({
   );
 
   return (
-    <div className="space-y-5 p-5 sm:p-8">
+    <div className="space-y-4 p-4 sm:space-y-5 sm:p-6 xl:p-8">
       {previewImage && (
         <PhotoViewerModal
           imageUrl={mediaUrl(previewImage.original_url)}
@@ -295,19 +299,21 @@ export default function PhotoLibrary({
         />
       )}
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-5 bg-gradient-to-r from-[#edf4ed] to-[#f8faf7] p-5 sm:flex-row sm:items-end sm:justify-between sm:p-7">
-          <div>
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-[#487158] shadow-sm">
+        <div className="flex flex-col gap-4 bg-gradient-to-r from-[#edf4ed] to-[#f8faf7] p-4 sm:flex-row sm:items-end sm:justify-between sm:p-6 xl:p-7">
+          <div className="flex items-start gap-3 sm:block">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[#487158] shadow-sm">
               <Camera size={19} />
             </span>
-            <h2 className="serif mt-4 text-2xl text-[#20382a]">
-              현장 사진 모아보기
-            </h2>
-            <p className="mt-1.5 text-sm leading-6 text-[#748379]">
-              모든 현장의 사진을 한곳에서 찾고 분류와 공개 상태를 관리하세요.
-            </p>
+            <div>
+              <h2 className="serif text-xl text-[#20382a] sm:mt-4 sm:text-2xl">
+                현장 사진 모아보기
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-[#748379] sm:mt-1.5">
+                모든 현장의 사진을 한곳에서 찾고 분류와 공개 상태를 관리하세요.
+              </p>
+            </div>
           </div>
-          <div className="flex rounded-xl border border-[#d6e1d8] bg-white p-1 shadow-sm">
+          <div className="grid w-full grid-cols-2 rounded-xl border border-[#d6e1d8] bg-white p-1 shadow-sm sm:flex sm:w-auto">
             {[
               ["all", "전체 사진"],
               ["projects", "현장별 보기"],
@@ -330,58 +336,87 @@ export default function PhotoLibrary({
             ))}
           </div>
         </div>
-        <div className="border-t border-[#e4ebe5] p-4 sm:p-5">
+        <div className="border-t border-[#e4ebe5] p-3 sm:p-5">
           <form
-            className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-[minmax(210px,1fr)_minmax(160px,.7fr)_minmax(160px,.7fr)_minmax(220px,1fr)_auto]"
+            className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-[minmax(210px,1fr)_minmax(160px,.7fr)_minmax(160px,.7fr)_minmax(220px,1fr)_auto]"
             onSubmit={(event) => {
               event.preventDefault();
               setPage(1);
               setSearchQuery(searchInput.trim());
             }}
           >
-            <DropdownSelect
-              value={projectId}
-              options={projectOptions}
-              onChange={(value) => changeFilter(setProjectId, value)}
-              ariaLabel="현장 필터"
-            />
-            <DropdownSelect
-              value={classification}
-              options={classificationFilterOptions}
-              onChange={(value) => changeFilter(setClassification, value)}
-              ariaLabel="사진 분류 필터"
-            />
-            <DropdownSelect
-              value={visibility}
-              options={visibilityOptions}
-              onChange={(value) =>
-                changeFilter(
-                  (next) => setVisibility(next as VisibilityFilter),
-                  value,
-                )
-              }
-              ariaLabel="공개 상태 필터"
-            />
-            <div className="relative min-w-0">
-              <Search
-                size={16}
-                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#87968d]"
-              />
-              <input
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                className="field h-full pl-10"
-                placeholder="현장명·파일명 검색"
-                aria-label="사진 검색"
-              />
-            </div>
-            <div className="flex gap-2 sm:col-span-2 xl:col-span-1">
-              <button type="submit" className="btn-primary flex-1">
-                <Search size={15} /> 검색
-              </button>
+            <div className="flex min-w-0 gap-2 md:col-span-2 xl:contents">
+              <div className="relative min-w-0 flex-1 xl:col-start-4">
+                <Search
+                  size={16}
+                  className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#87968d]"
+                />
+                <input
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  className="field h-full pl-10 pr-10"
+                  placeholder="현장명·파일명 검색"
+                  aria-label="사진 검색"
+                />
+                <button
+                  type="submit"
+                  className="absolute right-1.5 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-[#456454] hover:bg-[#edf3ee]"
+                  aria-label="사진 검색 실행"
+                >
+                  <Search size={16} />
+                </button>
+              </div>
               <button
                 type="button"
-                className="btn-secondary flex-1"
+                className={`relative inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3.5 text-sm font-semibold transition md:hidden ${
+                  filtersOpen || projectId || classification || visibility
+                    ? "border-[#8eaa96] bg-[#edf5ef] text-[#28563a]"
+                    : "border-[#c9d3cb] bg-white text-[#52655a]"
+                }`}
+                onClick={() => setFiltersOpen((open) => !open)}
+                aria-expanded={filtersOpen}
+                aria-controls="photo-filters"
+              >
+                <SlidersHorizontal size={16} /> 필터
+                {(projectId || classification || visibility) && (
+                  <span className="flex size-5 items-center justify-center rounded-full bg-[#28563a] text-[10px] font-bold text-white">
+                    {Number(Boolean(projectId)) +
+                      Number(Boolean(classification)) +
+                      Number(Boolean(visibility))}
+                  </span>
+                )}
+              </button>
+            </div>
+            <div
+              id="photo-filters"
+              className={`${filtersOpen ? "grid" : "hidden"} gap-2.5 rounded-2xl border border-[#d7e0d9] bg-white p-3 md:contents`}
+            >
+              <DropdownSelect
+                value={projectId}
+                options={projectOptions}
+                onChange={(value) => changeFilter(setProjectId, value)}
+                ariaLabel="현장 필터"
+              />
+              <DropdownSelect
+                value={classification}
+                options={classificationFilterOptions}
+                onChange={(value) => changeFilter(setClassification, value)}
+                ariaLabel="사진 분류 필터"
+              />
+              <DropdownSelect
+                value={visibility}
+                options={visibilityOptions}
+                onChange={(value) =>
+                  changeFilter(
+                    (next) => setVisibility(next as VisibilityFilter),
+                    value,
+                  )
+                }
+                ariaLabel="공개 상태 필터"
+              />
+              <button
+                type="button"
+                className="btn-secondary w-full xl:col-start-5"
                 onClick={resetFilters}
                 disabled={
                   !projectId &&
@@ -398,6 +433,59 @@ export default function PhotoLibrary({
           </form>
         </div>
       </section>
+
+      {(projectId || classification || visibility) && (
+        <div
+          className="flex flex-wrap gap-2 md:hidden"
+          aria-label="적용 중인 사진 필터"
+        >
+          {projectId && (
+            <button
+              type="button"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#e9f3ec] px-3 text-xs font-semibold text-[#2f6241]"
+              onClick={() => changeFilter(setProjectId, "")}
+            >
+              {
+                projectOptions.find((option) => option.value === projectId)
+                  ?.label
+              }
+              <X size={13} />
+            </button>
+          )}
+          {classification && (
+            <button
+              type="button"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#eef1f7] px-3 text-xs font-semibold text-[#4c5e76]"
+              onClick={() => changeFilter(setClassification, "")}
+            >
+              {
+                classificationFilterOptions.find(
+                  (option) => option.value === classification,
+                )?.label
+              }
+              <X size={13} />
+            </button>
+          )}
+          {visibility && (
+            <button
+              type="button"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#f3eef7] px-3 text-xs font-semibold text-[#655074]"
+              onClick={() =>
+                changeFilter(
+                  (value) => setVisibility(value as VisibilityFilter),
+                  "",
+                )
+              }
+            >
+              {
+                visibilityOptions.find((option) => option.value === visibility)
+                  ?.label
+              }
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      )}
 
       {error && (
         <p className="rounded-xl border border-[#f0d4d1] bg-[#fff1ef] px-4 py-3 text-sm text-[#a14e4e]">

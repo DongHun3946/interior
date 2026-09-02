@@ -25,15 +25,15 @@ export default function Pagination({
 
   return (
     <nav
-      className="flex flex-wrap items-center justify-center gap-3 py-3"
+      className="grid w-full grid-cols-2 items-center justify-center gap-2 py-3 sm:flex sm:flex-wrap sm:gap-3"
       aria-label="페이지 이동"
     >
-      <span className="mr-1 text-xs font-semibold text-[#718078]">
+      <span className="col-span-2 text-center text-xs font-semibold text-[#718078] sm:mr-1">
         {page} / {totalPages} 페이지
       </span>
       <button
         type="button"
-        className="btn-secondary h-11 px-3"
+        className="btn-secondary h-11 w-full px-3 sm:w-auto"
         disabled={page <= 1 || loading}
         onClick={() => move(Math.max(1, page - 1))}
       >
@@ -41,7 +41,7 @@ export default function Pagination({
       </button>
       <button
         type="button"
-        className="btn-secondary h-11 px-3"
+        className="btn-secondary h-11 w-full px-3 sm:w-auto"
         disabled={page >= totalPages || loading}
         onClick={() => move(Math.min(totalPages, page + 1))}
       >

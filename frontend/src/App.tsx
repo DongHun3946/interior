@@ -36,6 +36,7 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Trash2,
   Upload,
   WalletCards,
@@ -77,8 +78,7 @@ import Modal from "./Modal";
 import Pagination from "./Pagination";
 import { showSuccessToast } from "./Toast";
 
-const SIMULATION_ENABLED =
-  import.meta.env.VITE_ENABLE_SIMULATION === "true";
+const SIMULATION_ENABLED = import.meta.env.VITE_ENABLE_SIMULATION === "true";
 
 const statusLabels: Record<ProjectStatus, string> = {
   PLANNING: "공사 예정",
@@ -582,7 +582,7 @@ function Sidebar({
       {mobileOpen && (
         <button
           aria-label="메뉴 닫기"
-          className="fixed inset-0 z-20 bg-[#10261c]/45 lg:hidden"
+          className="fixed inset-0 z-[29] bg-[#10261c]/45 lg:hidden"
           onClick={closeMobile}
         />
       )}
@@ -613,7 +613,7 @@ function MobileBottomNav({
           <button
             key={item.id}
             onClick={() => setPage(item.id)}
-            className={`flex flex-col items-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold ${active ? "text-[#2f7a4b]" : "text-[#9aa3ab]"}`}
+            className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 text-[11px] font-semibold transition ${active ? "bg-[#edf5ef] text-[#2f7a4b]" : "text-[#78867d]"}`}
           >
             <Icon size={19} strokeWidth={active ? 2.5 : 2} />
             {item.label}
@@ -626,10 +626,10 @@ function MobileBottomNav({
 
 function Header({ title, onMenu }: { title: string; onMenu: () => void }) {
   return (
-    <header className="flex items-center justify-between border-b border-[#e6eae5] bg-white px-5 py-4 sm:px-8">
+    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[#e6eae5] bg-white/95 px-3 py-3 backdrop-blur sm:px-6 sm:py-4 xl:px-8">
       <div className="flex items-center gap-3">
         <button
-          className="flex h-11 w-11 items-center justify-center rounded-xl text-[#54705e] hover:bg-[#f1f5f2] lg:hidden"
+          className="flex h-10 w-10 items-center justify-center rounded-xl text-[#54705e] hover:bg-[#f1f5f2] sm:h-11 sm:w-11 lg:hidden"
           onClick={onMenu}
           aria-label="메뉴 열기"
         >
@@ -637,7 +637,9 @@ function Header({ title, onMenu }: { title: string; onMenu: () => void }) {
         </button>
         <div>
           <p className="text-xs font-semibold text-[#91a097]">현장 관리</p>
-          <h1 className="serif mt-0.5 text-2xl text-[#1d3328]">{title}</h1>
+          <h1 className="serif mt-0.5 text-xl text-[#1d3328] sm:text-2xl">
+            {title}
+          </h1>
         </div>
       </div>
       <div className="flex items-center gap-3">
@@ -647,7 +649,7 @@ function Header({ title, onMenu }: { title: string; onMenu: () => void }) {
             오늘도 좋은 공간을 만드세요
           </p>
         </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#dcecdf] text-sm font-bold text-[#365943]">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#dcecdf] text-xs font-bold text-[#365943] sm:h-10 sm:w-10 sm:text-sm">
           JI
         </div>
       </div>
@@ -855,59 +857,61 @@ function DashboardCalendar({
       month.getMonth(),
       1 - mondayOffset,
     );
-    return Array.from({ length: cellCount }, (_, index) =>
-      new Date(
-        gridStart.getFullYear(),
-        gridStart.getMonth(),
-        gridStart.getDate() + index,
-      ),
+    return Array.from(
+      { length: cellCount },
+      (_, index) =>
+        new Date(
+          gridStart.getFullYear(),
+          gridStart.getMonth(),
+          gridStart.getDate() + index,
+        ),
     );
   }, [month]);
   const calendarWeekKeys = useMemo(
     () =>
-      Array.from(
-        { length: calendarDays.length / 7 },
-        (_, weekIndex) => calendarDateKey(calendarDays[weekIndex * 7]),
+      Array.from({ length: calendarDays.length / 7 }, (_, weekIndex) =>
+        calendarDateKey(calendarDays[weekIndex * 7]),
       ),
     [calendarDays],
   );
 
   const todayKey = calendarDateKey(new Date());
   const visibleMonthLabel = `${month.getFullYear()}년 ${month.getMonth() + 1}월`;
-  const scheduleForDate = useCallback((dateKey: string) => {
-    return [
-      ...inquiries
-        .filter(
-          (inquiry) =>
-            inquiry.consultation_reserved_at &&
-            calendarDateTimeKey(inquiry.consultation_reserved_at) ===
-              dateKey,
-        )
-        .map((inquiry) => ({
-          kind: "consultation" as const,
-          inquiry,
-          priority: 0,
-        })),
-      ...projects
-        .filter((project) => {
-          if (!project.planned_start_date || !project.planned_end_date)
-            return false;
-          const [start, end] = [
-            project.planned_start_date,
-            project.planned_end_date,
-          ].sort();
-          return start <= dateKey && dateKey <= end;
-        })
-        .map((project) => ({
-          kind: "project" as const,
-          project,
-          priority: project.status === "IN_PROGRESS" ? 1 : 2,
-        })),
-    ].sort((left, right) => left.priority - right.priority);
-  }, [inquiries, projects]);
+  const scheduleForDate = useCallback(
+    (dateKey: string) => {
+      return [
+        ...inquiries
+          .filter(
+            (inquiry) =>
+              inquiry.consultation_reserved_at &&
+              calendarDateTimeKey(inquiry.consultation_reserved_at) === dateKey,
+          )
+          .map((inquiry) => ({
+            kind: "consultation" as const,
+            inquiry,
+            priority: 0,
+          })),
+        ...projects
+          .filter((project) => {
+            if (!project.planned_start_date || !project.planned_end_date)
+              return false;
+            const [start, end] = [
+              project.planned_start_date,
+              project.planned_end_date,
+            ].sort();
+            return start <= dateKey && dateKey <= end;
+          })
+          .map((project) => ({
+            kind: "project" as const,
+            project,
+            priority: project.status === "IN_PROGRESS" ? 1 : 2,
+          })),
+      ].sort((left, right) => left.priority - right.priority);
+    },
+    [inquiries, projects],
+  );
   const selectedDaySchedule = useMemo(
-    () =>
-      selectedCalendarDate ? scheduleForDate(selectedCalendarDate) : [],
+    () => (selectedCalendarDate ? scheduleForDate(selectedCalendarDate) : []),
     [scheduleForDate, selectedCalendarDate],
   );
   const todayScheduleCount = useMemo(
@@ -1026,13 +1030,13 @@ function DashboardCalendar({
                 .join(" "),
             }}
           >
-            {Array.from(
-              { length: calendarDays.length / 7 },
-              (_, weekIndex) => calendarDays.slice(weekIndex * 7, weekIndex * 7 + 7),
+            {Array.from({ length: calendarDays.length / 7 }, (_, weekIndex) =>
+              calendarDays.slice(weekIndex * 7, weekIndex * 7 + 7),
             ).map((weekDays) => {
               const weekStartKey = calendarDateKey(weekDays[0]);
               const weekEndKey = calendarDateKey(weekDays[6]);
-              const laneRanges: Array<Array<{ start: string; end: string }>> = [];
+              const laneRanges: Array<Array<{ start: string; end: string }>> =
+                [];
               const scheduleItems = [
                 ...inquiries.flatMap((inquiry) => {
                   if (!inquiry.consultation_reserved_at) return [];
@@ -1058,7 +1062,8 @@ function DashboardCalendar({
                     project.planned_end_date,
                   ].sort();
                   if (end < weekStartKey || start > weekEndKey) return [];
-                  const segmentStart = start < weekStartKey ? weekStartKey : start;
+                  const segmentStart =
+                    start < weekStartKey ? weekStartKey : start;
                   const segmentEnd = end > weekEndKey ? weekEndKey : end;
                   return [
                     {
@@ -1099,15 +1104,9 @@ function DashboardCalendar({
                 });
               const laneCount = laneRanges.length;
               const visibleLaneCapacity = weekHeights[weekStartKey]
-                ? Math.max(
-                    1,
-                    Math.floor((weekHeights[weekStartKey] - 48) / 24),
-                  )
+                ? Math.max(1, Math.floor((weekHeights[weekStartKey] - 48) / 24))
                 : 1;
-              const visibleLaneCount = Math.min(
-                laneCount,
-                visibleLaneCapacity,
-              );
+              const visibleLaneCount = Math.min(laneCount, visibleLaneCapacity);
 
               return (
                 <div key={weekStartKey} className="relative">
@@ -1175,79 +1174,79 @@ function DashboardCalendar({
                       {scheduleItems
                         .filter((item) => item.lane < visibleLaneCount)
                         .map((item) => {
-                        const startColumn = weekDays.findIndex(
-                          (date) =>
-                            calendarDateKey(date) === item.segmentStart,
-                        );
-                        const endColumn = weekDays.findIndex(
-                          (date) => calendarDateKey(date) === item.segmentEnd,
-                        );
-                        if (item.kind === "consultation") {
-                          const label = `상담 예약 · ${calendarTime(item.inquiry.consultation_reserved_at!)} ${item.inquiry.customer_name}`;
+                          const startColumn = weekDays.findIndex(
+                            (date) =>
+                              calendarDateKey(date) === item.segmentStart,
+                          );
+                          const endColumn = weekDays.findIndex(
+                            (date) => calendarDateKey(date) === item.segmentEnd,
+                          );
+                          if (item.kind === "consultation") {
+                            const label = `상담 예약 · ${calendarTime(item.inquiry.consultation_reserved_at!)} ${item.inquiry.customer_name}`;
+                            return (
+                              <button
+                                key={`consultation-${item.inquiry.id}`}
+                                type="button"
+                                className="pointer-events-auto mx-2 flex min-w-0 items-center truncate rounded-md border-x-[3px] border-y border-x-[#b86518] border-y-[#b86518] bg-[#fff0df] px-2 text-left text-[11px] font-semibold text-[#9a5b1e] transition hover:z-20 hover:brightness-95"
+                                style={{
+                                  gridColumn: `${startColumn + 1} / ${endColumn + 2}`,
+                                  gridRow: item.lane + 1,
+                                }}
+                                onClick={() => onOpenInquiry(item.inquiry.id)}
+                                title={label}
+                                aria-label={label}
+                              >
+                                {label}
+                              </button>
+                            );
+                          }
+
+                          const startsHere = item.start === item.segmentStart;
+                          const endsHere = item.end === item.segmentEnd;
+                          const statusLabel =
+                            item.project.status === "PLANNING"
+                              ? "공사 예정"
+                              : "공사 중";
                           return (
                             <button
-                              key={`consultation-${item.inquiry.id}`}
+                              key={`project-${item.project.id}`}
                               type="button"
-                              className="pointer-events-auto mx-2 flex min-w-0 items-center truncate rounded-md border-x-[3px] border-y border-x-[#b86518] border-y-[#b86518] bg-[#fff0df] px-2 text-left text-[11px] font-semibold text-[#9a5b1e] transition hover:z-20 hover:brightness-95"
+                              className={`pointer-events-auto mx-0 flex min-w-0 items-center truncate border-y px-2 text-left text-[11px] font-semibold transition hover:z-20 hover:brightness-95 ${
+                                item.project.status === "PLANNING"
+                                  ? "border-y-[#315f99] bg-[#e4edf9] text-[#315f99]"
+                                  : "border-y-[#285d3a] bg-[#dcece0] text-[#285d3a]"
+                              } ${
+                                startsHere
+                                  ? `ml-2 rounded-l-md border-l-[3px] ${
+                                      item.project.status === "PLANNING"
+                                        ? "border-l-[#315f99]"
+                                        : "border-l-[#285d3a]"
+                                    }`
+                                  : "rounded-l-none"
+                              } ${
+                                endsHere
+                                  ? `mr-2 rounded-r-md border-r-[3px] ${
+                                      item.project.status === "PLANNING"
+                                        ? "border-r-[#315f99]"
+                                        : "border-r-[#285d3a]"
+                                    }`
+                                  : "rounded-r-none"
+                              }`}
                               style={{
                                 gridColumn: `${startColumn + 1} / ${endColumn + 2}`,
                                 gridRow: item.lane + 1,
                               }}
-                              onClick={() => onOpenInquiry(item.inquiry.id)}
-                              title={label}
-                              aria-label={label}
+                              onClick={() => onOpenProject(item.project.id)}
+                              title={`${statusLabel} · ${item.project.title}`}
+                              aria-label={`${statusLabel} · ${item.project.title}`}
                             >
-                              {label}
+                              {startsHere && (
+                                <>
+                                  {statusLabel} · {item.project.title}
+                                </>
+                              )}
                             </button>
                           );
-                        }
-
-                        const startsHere = item.start === item.segmentStart;
-                        const endsHere = item.end === item.segmentEnd;
-                        const statusLabel =
-                          item.project.status === "PLANNING"
-                            ? "공사 예정"
-                            : "공사 중";
-                        return (
-                          <button
-                            key={`project-${item.project.id}`}
-                            type="button"
-                            className={`pointer-events-auto mx-0 flex min-w-0 items-center truncate border-y px-2 text-left text-[11px] font-semibold transition hover:z-20 hover:brightness-95 ${
-                              item.project.status === "PLANNING"
-                                ? "border-y-[#315f99] bg-[#e4edf9] text-[#315f99]"
-                                : "border-y-[#285d3a] bg-[#dcece0] text-[#285d3a]"
-                            } ${
-                              startsHere
-                                ? `ml-2 rounded-l-md border-l-[3px] ${
-                                    item.project.status === "PLANNING"
-                                      ? "border-l-[#315f99]"
-                                      : "border-l-[#285d3a]"
-                                  }`
-                                : "rounded-l-none"
-                            } ${
-                              endsHere
-                                ? `mr-2 rounded-r-md border-r-[3px] ${
-                                    item.project.status === "PLANNING"
-                                      ? "border-r-[#315f99]"
-                                      : "border-r-[#285d3a]"
-                                  }`
-                                : "rounded-r-none"
-                            }`}
-                            style={{
-                              gridColumn: `${startColumn + 1} / ${endColumn + 2}`,
-                              gridRow: item.lane + 1,
-                            }}
-                            onClick={() => onOpenProject(item.project.id)}
-                            title={`${statusLabel} · ${item.project.title}`}
-                            aria-label={`${statusLabel} · ${item.project.title}`}
-                          >
-                            {startsHere && (
-                              <>
-                                {statusLabel} · {item.project.title}
-                              </>
-                            )}
-                          </button>
-                        );
                         })}
                     </div>
                   )}
@@ -1284,7 +1283,9 @@ function DashboardCalendar({
             Number(selectedCalendarDate.slice(8, 10)) +
             "일 일정"
           }
-          description={"총 " + selectedDaySchedule.length + "개의 일정이 있습니다."}
+          description={
+            "총 " + selectedDaySchedule.length + "개의 일정이 있습니다."
+          }
           onClose={() => setSelectedCalendarDate(undefined)}
           maxWidthClass="max-w-md"
         >
@@ -1374,10 +1375,11 @@ function DashboardPage({
   const [todayScheduleCount, setTodayScheduleCount] = useState(0);
   const [todayScheduleRequest, setTodayScheduleRequest] = useState(0);
   return (
-    <div className="flex min-h-0 flex-col gap-4 p-5 sm:p-6 md:h-[calc(100dvh-89px)] md:overflow-hidden">
+    <div className="flex min-h-0 flex-col gap-4 p-4 sm:p-6 md:h-[calc(100dvh-165px)] md:overflow-hidden lg:h-[calc(100dvh-89px)]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="serif text-2xl text-[#1b3025] lg:text-3xl">
-          오늘의 현장을 <span className="text-[#64846c]">한눈에 확인하세요</span>
+        <h2 className="serif text-xl text-[#1b3025] sm:text-2xl lg:text-3xl">
+          오늘의 현장을{" "}
+          <span className="text-[#64846c]">한눈에 확인하세요</span>
         </h2>
         <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row">
           <div className="w-full sm:w-52">
@@ -1386,9 +1388,7 @@ function DashboardPage({
               value={`${todayScheduleCount}건`}
               tone="bg-[#e8f3f2] text-[#39726d]"
               icon={CalendarDays}
-              onClick={() =>
-                setTodayScheduleRequest((current) => current + 1)
-              }
+              onClick={() => setTodayScheduleRequest((current) => current + 1)}
             />
           </div>
         </div>
@@ -1500,10 +1500,8 @@ function ManagementOverviewPage({
       page_size: "12",
       status: projectModalStatus.status,
     });
-    if (appliedDateFrom)
-      params.set("planned_start_date_from", appliedDateFrom);
-    if (appliedDateTo)
-      params.set("planned_start_date_to", appliedDateTo);
+    if (appliedDateFrom) params.set("planned_start_date_from", appliedDateFrom);
+    if (appliedDateTo) params.set("planned_start_date_to", appliedDateTo);
 
     setProjectModalLoading(true);
     setProjectModalError("");
@@ -1520,9 +1518,7 @@ function ManagementOverviewPage({
           ];
         });
         setProjectModalTotal(result.total);
-        setProjectModalHasMore(
-          result.page * result.page_size < result.total,
-        );
+        setProjectModalHasMore(result.page * result.page_size < result.total);
       })
       .catch((caught) => {
         if (!active) return;
@@ -1575,15 +1571,15 @@ function ManagementOverviewPage({
 
   if (!overview)
     return (
-      <div className="flex min-h-[calc(100dvh-89px)] items-center justify-center p-5 sm:p-8">
+      <div className="flex min-h-[calc(100dvh-81px)] items-center justify-center p-4 sm:p-6 xl:min-h-[calc(100dvh-89px)] xl:p-8">
         <section className="panel w-full max-w-md p-6 sm:p-8">
           <div className="flex size-12 items-center justify-center rounded-2xl bg-[#e8f1e9] text-[#315f40]">
             <LockKeyhole size={22} />
           </div>
           <h2 className="serif mt-5 text-2xl text-[#1d382a]">경영 현황 확인</h2>
           <p className="mt-2 text-sm leading-6 text-[#718078]">
-            계약 및 입금 정보가 포함된 보호 메뉴입니다. 경영 현황 전용
-            2차 비밀번호를 입력해 주세요.
+            계약 및 입금 정보가 포함된 보호 메뉴입니다. 경영 현황 전용 2차
+            비밀번호를 입력해 주세요.
           </p>
           <form className="mt-6" onSubmit={unlock}>
             <label className="label" htmlFor="management-password">
@@ -1745,7 +1741,8 @@ function ManagementOverviewPage({
                         <Badge status={project.status} />
                       </span>
                       <span className="mt-1 block truncate text-xs text-[#7b8980]">
-                        {projectTypeLabels[project.project_type]} · {project.address}
+                        {projectTypeLabels[project.project_type]} ·{" "}
+                        {project.address}
                       </span>
                       <span className="mt-1 flex items-center gap-1 text-[11px] text-[#95a098]">
                         <CalendarDays size={12} />
@@ -1753,7 +1750,10 @@ function ManagementOverviewPage({
                         {fullDate(project.planned_end_date)}
                       </span>
                     </span>
-                    <ChevronRight size={17} className="shrink-0 text-[#92a097]" />
+                    <ChevronRight
+                      size={17}
+                      className="shrink-0 text-[#92a097]"
+                    />
                   </button>
                 ))}
               </div>
@@ -1782,250 +1782,258 @@ function ManagementOverviewPage({
           </div>
         </Modal>
       )}
-      <div className="space-y-5 p-5 sm:p-8">
-      <form
-        className="panel flex flex-col gap-3 p-4 lg:flex-row lg:items-end"
-        onSubmit={applyPeriod}
-      >
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-bold text-[#294534]">조회 기간</p>
-            <span className="rounded-full bg-[#edf4ee] px-2.5 py-1 text-[10px] font-bold text-[#4f6c59]">
-              {appliedPeriodLabel}
+      <div className="space-y-5 p-4 sm:p-6 xl:p-8">
+        <form
+          className="panel flex flex-col gap-3 p-4 lg:flex-row lg:items-end"
+          onSubmit={applyPeriod}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-bold text-[#294534]">조회 기간</p>
+              <span className="rounded-full bg-[#edf4ee] px-2.5 py-1 text-[10px] font-bold text-[#4f6c59]">
+                {appliedPeriodLabel}
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] leading-5 text-[#87948c]">
+              공사 현황은 시작 예정일, 계약은 견적서 작성일, 입금은 입금일
+              기준입니다.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input
+              className="field sm:w-40"
+              type="date"
+              aria-label="경영 현황 조회 시작일"
+              onClick={showDatePicker}
+              max={dateTo || undefined}
+              value={dateFrom}
+              onChange={(event) => {
+                const nextDate = event.target.value;
+                setDateFrom(nextDate);
+                if (dateTo && dateTo < nextDate) setDateTo("");
+              }}
+            />
+            <span className="hidden text-sm text-[#8a968e] sm:inline">~</span>
+            <input
+              className="field sm:w-40"
+              type="date"
+              aria-label="경영 현황 조회 종료일"
+              onClick={showDatePicker}
+              min={dateFrom || undefined}
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+            />
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="btn-primary flex-1 whitespace-nowrap sm:flex-none"
+                disabled={loading}
+              >
+                <Search size={15} /> {loading ? "조회 중…" : "조회"}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary flex-1 whitespace-nowrap sm:flex-none"
+                onClick={resetPeriod}
+                disabled={
+                  loading ||
+                  (!dateFrom && !dateTo && !appliedDateFrom && !appliedDateTo)
+                }
+              >
+                <RotateCcw size={15} /> 초기화
+              </button>
+            </div>
+          </div>
+          {error && (
+            <p className="rounded-xl bg-[#fff0ef] px-3.5 py-2.5 text-xs text-[#a14e4e] lg:max-w-64">
+              {error}
+            </p>
+          )}
+        </form>
+        <section className="panel p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4 border-b border-[#edf1ed] pb-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[.14em] text-[#789081]">
+                Construction
+              </p>
+              <h2 className="mt-1 text-lg font-bold text-[#213c2e]">
+                공사 진행 현황
+              </h2>
+              <p className="mt-1 text-xs text-[#87958c]">
+                공사 상태를 기준으로 집계한 전체 진행 분포입니다.
+              </p>
+            </div>
+            <span className="rounded-full bg-[#eef4ef] px-3 py-1.5 text-xs font-bold text-[#496657]">
+              총 {trackedProjectCount}곳
             </span>
           </div>
-          <p className="mt-1 text-[11px] leading-5 text-[#87948c]">
-            공사 현황은 시작 예정일, 계약은 견적서 작성일, 입금은 입금일
-            기준입니다.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <input
-            className="field sm:w-40"
-            type="date"
-            aria-label="경영 현황 조회 시작일"
-            onClick={showDatePicker}
-            max={dateTo || undefined}
-            value={dateFrom}
-            onChange={(event) => {
-              const nextDate = event.target.value;
-              setDateFrom(nextDate);
-              if (dateTo && dateTo < nextDate) setDateTo("");
-            }}
-          />
-          <span className="hidden text-sm text-[#8a968e] sm:inline">~</span>
-          <input
-            className="field sm:w-40"
-            type="date"
-            aria-label="경영 현황 조회 종료일"
-            onClick={showDatePicker}
-            min={dateFrom || undefined}
-            value={dateTo}
-            onChange={(event) => setDateTo(event.target.value)}
-          />
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              className="btn-primary flex-1 whitespace-nowrap sm:flex-none"
-              disabled={loading}
-            >
-              <Search size={15} /> {loading ? "조회 중…" : "조회"}
-            </button>
-            <button
-              type="button"
-              className="btn-secondary flex-1 whitespace-nowrap sm:flex-none"
-              onClick={resetPeriod}
-              disabled={loading || (!dateFrom && !dateTo && !appliedDateFrom && !appliedDateTo)}
-            >
-              <RotateCcw size={15} /> 초기화
-            </button>
-          </div>
-        </div>
-        {error && (
-          <p className="rounded-xl bg-[#fff0ef] px-3.5 py-2.5 text-xs text-[#a14e4e] lg:max-w-64">
-            {error}
-          </p>
-        )}
-      </form>
-      <section className="panel p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-4 border-b border-[#edf1ed] pb-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[.14em] text-[#789081]">
-              Construction
-            </p>
-            <h2 className="mt-1 text-lg font-bold text-[#213c2e]">
-              공사 진행 현황
-            </h2>
-            <p className="mt-1 text-xs text-[#87958c]">
-              공사 상태를 기준으로 집계한 전체 진행 분포입니다.
-            </p>
-          </div>
-          <span className="rounded-full bg-[#eef4ef] px-3 py-1.5 text-xs font-bold text-[#496657]">
-            총 {trackedProjectCount}곳
-          </span>
-        </div>
 
-        <div className="mt-6 grid items-center gap-7 lg:grid-cols-[190px_minmax(0,1fr)]">
-          <div className="flex justify-center">
-            <div
-              className="relative flex size-40 items-center justify-center rounded-full sm:size-44"
-              style={{ background: projectChartBackground }}
-              role="img"
-              aria-label={`공사 완료 비율 ${Math.round(completedRate)}%`}
-            >
-              <div className="absolute inset-[18px] rounded-full bg-white shadow-[inset_0_0_0_1px_#edf1ed]" />
-              <div className="relative text-center">
-                <p className="text-3xl font-bold tracking-tight text-[#18372b]">
-                  {Math.round(completedRate)}%
-                </p>
-                <p className="mt-1 text-[11px] font-semibold text-[#7d8b82]">
-                  완료 비율
-                </p>
+          <div className="mt-6 grid items-center gap-7 lg:grid-cols-[190px_minmax(0,1fr)]">
+            <div className="flex justify-center">
+              <div
+                className="relative flex size-40 items-center justify-center rounded-full sm:size-44"
+                style={{ background: projectChartBackground }}
+                role="img"
+                aria-label={`공사 완료 비율 ${Math.round(completedRate)}%`}
+              >
+                <div className="absolute inset-[18px] rounded-full bg-white shadow-[inset_0_0_0_1px_#edf1ed]" />
+                <div className="relative text-center">
+                  <p className="text-3xl font-bold tracking-tight text-[#18372b]">
+                    {Math.round(completedRate)}%
+                  </p>
+                  <p className="mt-1 text-[11px] font-semibold text-[#7d8b82]">
+                    완료 비율
+                  </p>
+                </div>
               </div>
+            </div>
+
+            <div className="space-y-5">
+              {projectStatuses.map(
+                ({ label, statusValue, value, bar }, index) => {
+                  const share = projectShares[index];
+                  return (
+                    <button
+                      type="button"
+                      className="block w-full rounded-xl p-2 text-left transition hover:bg-[#f6f9f6]"
+                      key={label}
+                      onClick={() => openProjectStatus(statusValue, label)}
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                        <span className="font-semibold text-[#4c6154]">
+                          {label}
+                        </span>
+                        <span className="font-bold text-[#213c2e]">
+                          {value}곳
+                          <span className="ml-1.5 text-xs font-medium text-[#8b978f]">
+                            {Math.round(share)}%
+                          </span>
+                        </span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-[#edf1ee]">
+                        <div
+                          className={`h-full rounded-full transition-[width] duration-500 ${bar}`}
+                          style={{ width: `${share}%` }}
+                        />
+                      </div>
+                    </button>
+                  );
+                },
+              )}
             </div>
           </div>
 
-          <div className="space-y-5">
+          <div className="mt-7 grid gap-3 border-t border-[#edf1ed] pt-5 sm:grid-cols-3">
             {projectStatuses.map(
-              ({ label, statusValue, value, bar }, index) => {
-              const share = projectShares[index];
-              return (
+              ({ label, statusValue, value, icon: Icon, tone }) => (
                 <button
                   type="button"
-                  className="block w-full rounded-xl p-2 text-left transition hover:bg-[#f6f9f6]"
+                  className="group flex items-center gap-3 rounded-xl bg-[#f8faf8] p-3.5 text-left transition hover:bg-[#eef4ef]"
                   key={label}
                   onClick={() => openProjectStatus(statusValue, label)}
                 >
-                  <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                    <span className="font-semibold text-[#4c6154]">{label}</span>
-                    <span className="font-bold text-[#213c2e]">
-                      {value}곳
-                      <span className="ml-1.5 text-xs font-medium text-[#8b978f]">
-                        {Math.round(share)}%
-                      </span>
-                    </span>
-                  </div>
-                  <div className="h-2.5 overflow-hidden rounded-full bg-[#edf1ee]">
-                    <div
-                      className={`h-full rounded-full transition-[width] duration-500 ${bar}`}
-                      style={{ width: `${share}%` }}
-                    />
-                  </div>
-                </button>
-              );
-              },
-            )}
-          </div>
-        </div>
-
-        <div className="mt-7 grid gap-3 border-t border-[#edf1ed] pt-5 sm:grid-cols-3">
-          {projectStatuses.map(
-            ({ label, statusValue, value, icon: Icon, tone }) => (
-            <button
-              type="button"
-              className="group flex items-center gap-3 rounded-xl bg-[#f8faf8] p-3.5 text-left transition hover:bg-[#eef4ef]"
-              key={label}
-              onClick={() => openProjectStatus(statusValue, label)}
-            >
-              <span
-                className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${tone}`}
-              >
-                <Icon size={17} />
-              </span>
-              <div>
-                <p className="text-[11px] font-semibold text-[#7c8981]">
-                  {label}
-                </p>
-                <p className="mt-0.5 text-lg font-bold leading-none text-[#18372b]">
-                  {value}곳
-                </p>
-              </div>
-              <ChevronRight
-                size={16}
-                className="ml-auto text-[#9aa69e] transition group-hover:translate-x-0.5 group-hover:text-[#55705e]"
-              />
-            </button>
-            ),
-          )}
-        </div>
-      </section>
-
-      <section className="panel p-5 sm:p-6">
-        <div className="border-b border-[#edf1ed] pb-4">
-          <p className="text-xs font-bold uppercase tracking-[.14em] text-[#789081]">
-            Finance
-          </p>
-          <h2 className="mt-1 text-lg font-bold text-[#213c2e]">금액 현황</h2>
-          <p className="mt-1 text-xs text-[#87958c]">
-            적용된 계약 금액과 실제 입금 내역을 기준으로 계산합니다.
-          </p>
-        </div>
-
-        <div className="mt-6 grid items-center gap-7 lg:grid-cols-[190px_minmax(0,1fr)]">
-          <div className="flex justify-center">
-            <div
-              className="relative flex size-40 items-center justify-center rounded-full sm:size-44"
-              style={{
-                background: `conic-gradient(#3b7f55 0% ${paymentChartRate}%, #e6ece7 ${paymentChartRate}% 100%)`,
-              }}
-              role="img"
-              aria-label={`계약 금액 대비 입금률 ${Math.round(paymentRate)}%`}
-            >
-              <div className="absolute inset-[18px] rounded-full bg-white shadow-[inset_0_0_0_1px_#edf1ed]" />
-              <div className="relative text-center">
-                <p className="text-3xl font-bold tracking-tight text-[#18372b]">
-                  {Math.round(paymentRate)}%
-                </p>
-                <p className="mt-1 text-[11px] font-semibold text-[#7d8b82]">
-                  입금률
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <div className="grid gap-3 md:grid-cols-3">
-              {financeItems.map(
-                ({ label, value, description, icon: Icon, tone }) => (
-                  <div
-                    className="rounded-xl border border-[#e5ebe6] bg-[#fbfcfb] p-4"
-                    key={label}
+                  <span
+                    className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${tone}`}
                   >
-                    <span
-                      className={`flex size-9 items-center justify-center rounded-lg ${tone}`}
-                    >
-                      <Icon size={17} />
-                    </span>
-                    <p className="mt-4 text-xs font-semibold text-[#718078]">
+                    <Icon size={17} />
+                  </span>
+                  <div>
+                    <p className="text-[11px] font-semibold text-[#7c8981]">
                       {label}
                     </p>
-                    <p className="mt-1 break-keep text-xl font-bold tracking-tight text-[#18372b]">
-                      {value}
-                    </p>
-                    <p className="mt-2 text-[11px] leading-5 text-[#929e96]">
-                      {description}
+                    <p className="mt-0.5 text-lg font-bold leading-none text-[#18372b]">
+                      {value}곳
                     </p>
                   </div>
-                ),
-              )}
-            </div>
-            <div className="mt-5">
-              <div className="mb-2 flex items-center justify-between text-xs">
-                <span className="font-semibold text-[#617269]">입금 진행률</span>
-                <span className="font-bold text-[#315f40]">
-                  {money(overview.total_paid)} / {money(overview.total_contract)}
-                </span>
+                  <ChevronRight
+                    size={16}
+                    className="ml-auto text-[#9aa69e] transition group-hover:translate-x-0.5 group-hover:text-[#55705e]"
+                  />
+                </button>
+              ),
+            )}
+          </div>
+        </section>
+
+        <section className="panel p-5 sm:p-6">
+          <div className="border-b border-[#edf1ed] pb-4">
+            <p className="text-xs font-bold uppercase tracking-[.14em] text-[#789081]">
+              Finance
+            </p>
+            <h2 className="mt-1 text-lg font-bold text-[#213c2e]">금액 현황</h2>
+            <p className="mt-1 text-xs text-[#87958c]">
+              적용된 계약 금액과 실제 입금 내역을 기준으로 계산합니다.
+            </p>
+          </div>
+
+          <div className="mt-6 grid items-center gap-7 lg:grid-cols-[190px_minmax(0,1fr)]">
+            <div className="flex justify-center">
+              <div
+                className="relative flex size-40 items-center justify-center rounded-full sm:size-44"
+                style={{
+                  background: `conic-gradient(#3b7f55 0% ${paymentChartRate}%, #e6ece7 ${paymentChartRate}% 100%)`,
+                }}
+                role="img"
+                aria-label={`계약 금액 대비 입금률 ${Math.round(paymentRate)}%`}
+              >
+                <div className="absolute inset-[18px] rounded-full bg-white shadow-[inset_0_0_0_1px_#edf1ed]" />
+                <div className="relative text-center">
+                  <p className="text-3xl font-bold tracking-tight text-[#18372b]">
+                    {Math.round(paymentRate)}%
+                  </p>
+                  <p className="mt-1 text-[11px] font-semibold text-[#7d8b82]">
+                    입금률
+                  </p>
+                </div>
               </div>
-              <div className="h-3 overflow-hidden rounded-full bg-[#e6ece7]">
-                <div
-                  className="h-full rounded-full bg-[#3b7f55] transition-[width] duration-500"
-                  style={{ width: `${paymentChartRate}%` }}
-                />
+            </div>
+
+            <div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {financeItems.map(
+                  ({ label, value, description, icon: Icon, tone }) => (
+                    <div
+                      className="rounded-xl border border-[#e5ebe6] bg-[#fbfcfb] p-4"
+                      key={label}
+                    >
+                      <span
+                        className={`flex size-9 items-center justify-center rounded-lg ${tone}`}
+                      >
+                        <Icon size={17} />
+                      </span>
+                      <p className="mt-4 text-xs font-semibold text-[#718078]">
+                        {label}
+                      </p>
+                      <p className="mt-1 break-keep text-xl font-bold tracking-tight text-[#18372b]">
+                        {value}
+                      </p>
+                      <p className="mt-2 text-[11px] leading-5 text-[#929e96]">
+                        {description}
+                      </p>
+                    </div>
+                  ),
+                )}
+              </div>
+              <div className="mt-5">
+                <div className="mb-2 flex items-center justify-between text-xs">
+                  <span className="font-semibold text-[#617269]">
+                    입금 진행률
+                  </span>
+                  <span className="font-bold text-[#315f40]">
+                    {money(overview.total_paid)} /{" "}
+                    {money(overview.total_contract)}
+                  </span>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-[#e6ece7]">
+                  <div
+                    className="h-full rounded-full bg-[#3b7f55] transition-[width] duration-500"
+                    style={{ width: `${paymentChartRate}%` }}
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
       </div>
     </>
   );
@@ -2046,7 +2054,7 @@ function ProjectCard({
 }) {
   const content = (
     <>
-      <div className="relative h-48 bg-[#edf2ed]">
+      <div className="relative h-40 bg-[#edf2ed] sm:h-48">
         {project.cover_image ? (
           <img
             src={mediaUrl(project.cover_image.thumbnail_url)}
@@ -2138,6 +2146,7 @@ function ProjectsPage({
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [projectType, setProjectType] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -2180,6 +2189,7 @@ function ProjectsPage({
     setQuery("");
     setProjectType("");
     setStatus("");
+    setFiltersOpen(false);
     setPage(1);
   };
   const restoreProject = async (id: string) => {
@@ -2200,7 +2210,7 @@ function ProjectsPage({
     }
   };
   return (
-    <div className="space-y-6 p-5 sm:p-8">
+    <div className="space-y-4 p-4 sm:space-y-6 sm:p-6 xl:p-8">
       <div
         className={`flex flex-col gap-4 sm:flex-row sm:items-end ${showArchived ? "justify-between" : "justify-end"}`}
       >
@@ -2209,15 +2219,13 @@ function ProjectsPage({
             <p className="text-sm text-[#758078]">
               삭제된 프로젝트를 관리합니다
             </p>
-            <h2 className="serif mt-1 text-3xl text-[#1b3025]">
-              삭제된 현장
-            </h2>
+            <h2 className="serif mt-1 text-3xl text-[#1b3025]">삭제된 현장</h2>
           </div>
         )}
-        <div className="flex flex-wrap gap-2 self-start sm:self-auto">
+        <div className="flex w-full gap-2 self-start sm:w-auto sm:self-auto">
           <button
             type="button"
-            className="btn-secondary"
+            className="btn-secondary flex-1 sm:flex-none"
             onClick={() => {
               setShowArchived((current) => !current);
               setPage(1);
@@ -2228,57 +2236,151 @@ function ProjectsPage({
             {showArchived ? "전체 현장" : "삭제된 현장"}
           </button>
           {!showArchived && (
-            <button className="btn-primary" onClick={onCreate}>
+            <button
+              className="btn-primary flex-1 sm:flex-none"
+              onClick={onCreate}
+            >
               <Plus size={17} />새 현장 등록
             </button>
           )}
         </div>
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <Search
-            size={17}
-            className="absolute left-3.5 top-3.5 text-[#9aa49d]"
-          />
-          <input
-            className="field pl-10"
-            placeholder="현장명, 주소, 고객명 검색"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
+      <div className="space-y-2.5 lg:flex lg:gap-3 lg:space-y-0">
+        <div className="flex min-w-0 flex-1 gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search
+              size={17}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9aa49d]"
+            />
+            <input
+              className={`field pl-10 ${query ? "pr-10" : ""}`}
+              placeholder="현장명, 주소, 고객명 검색"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(1);
+              }}
+            />
+            {query && (
+              <button
+                type="button"
+                className="absolute right-1.5 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-[#748078] hover:bg-[#edf2ee]"
+                onClick={() => {
+                  setQuery("");
+                  setPage(1);
+                }}
+                aria-label="검색어 지우기"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            className={`relative inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3.5 text-sm font-semibold transition lg:hidden ${
+              filtersOpen || projectType || status
+                ? "border-[#8eaa96] bg-[#edf5ef] text-[#28563a]"
+                : "border-[#c9d3cb] bg-white text-[#52655a]"
+            }`}
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            aria-controls="project-filters"
+          >
+            <SlidersHorizontal size={16} /> 필터
+            {(projectType || status) && (
+              <span className="flex size-5 items-center justify-center rounded-full bg-[#28563a] text-[10px] font-bold text-white">
+                {Number(Boolean(projectType)) + Number(Boolean(status))}
+              </span>
+            )}
+          </button>
+        </div>
+        <div
+          id="project-filters"
+          className={`${filtersOpen ? "flex" : "hidden"} flex-col gap-2.5 rounded-2xl border border-[#d7e0d9] bg-white p-3 shadow-[0_8px_24px_rgba(24,55,43,.06)] lg:contents`}
+        >
+          <DropdownSelect
+            className="w-full lg:w-48"
+            value={projectType}
+            options={projectTypeFilterOptions}
+            onChange={(value) => {
+              setProjectType(value);
               setPage(1);
             }}
+            ariaLabel="공사 구분 필터"
           />
+          <DropdownSelect
+            className="w-full lg:w-44"
+            value={status}
+            options={projectStatusFilterOptions}
+            onChange={(value) => {
+              setStatus(value);
+              setPage(1);
+            }}
+            ariaLabel="현장 상태 필터"
+          />
+          {(projectType || status) && (
+            <button
+              type="button"
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 self-end px-2 text-sm font-semibold text-[#5f7166] lg:hidden"
+              onClick={resetFilters}
+            >
+              <RotateCcw size={14} /> 필터 초기화
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-secondary hidden shrink-0 lg:inline-flex lg:px-3"
+            onClick={resetFilters}
+            disabled={!query && !projectType && !status && page === 1}
+          >
+            <RotateCcw size={15} /> 초기화
+          </button>
         </div>
-        <DropdownSelect
-          className="sm:w-48"
-          value={projectType}
-          options={projectTypeFilterOptions}
-          onChange={(value) => {
-            setProjectType(value);
-            setPage(1);
-          }}
-          ariaLabel="공사 구분 필터"
-        />
-        <DropdownSelect
-          className="sm:w-44"
-          value={status}
-          options={projectStatusFilterOptions}
-          onChange={(value) => {
-            setStatus(value);
-            setPage(1);
-          }}
-          ariaLabel="현장 상태 필터"
-        />
-        <button
-          type="button"
-          className="btn-secondary shrink-0 sm:px-3"
-          onClick={resetFilters}
-          disabled={!query && !projectType && !status && page === 1}
-        >
-          <RotateCcw size={15} /> 초기화
-        </button>
       </div>
+      {(projectType || status) && (
+        <div
+          className="flex flex-wrap gap-2 lg:hidden"
+          aria-label="적용 중인 필터"
+        >
+          {projectType && (
+            <button
+              type="button"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#e9f3ec] px-3 text-xs font-semibold text-[#2f6241]"
+              onClick={() => {
+                setProjectType("");
+                setPage(1);
+              }}
+            >
+              {
+                projectTypeFilterOptions.find(
+                  (option) => option.value === projectType,
+                )?.label
+              }
+              <X size={13} />
+            </button>
+          )}
+          {status && (
+            <button
+              type="button"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#eef1f7] px-3 text-xs font-semibold text-[#4c5e76]"
+              onClick={() => {
+                setStatus("");
+                setPage(1);
+              }}
+            >
+              {
+                projectStatusFilterOptions.find(
+                  (option) => option.value === status,
+                )?.label
+              }
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      )}
+      <p className="text-sm font-semibold text-[#65746b]">
+        총 <span className="font-bold text-[#244333]">{total}</span>건
+      </p>
       {error && (
         <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
@@ -2521,7 +2623,7 @@ function ProjectForm({
     }
   };
   return (
-    <div className="mx-auto max-w-3xl p-5 sm:p-8">
+    <div className="mx-auto max-w-3xl p-4 sm:p-6 xl:p-8">
       <button
         className="mb-5 flex items-center gap-1 text-sm font-semibold text-[#68806f]"
         onClick={onCancel}
@@ -2535,7 +2637,7 @@ function ProjectForm({
         </h2>
       </div>
       <form onSubmit={submit} className="space-y-6">
-        <section className="panel p-5 sm:p-7">
+        <section className="panel p-4 sm:p-6 xl:p-7">
           <div className="flex items-center justify-between gap-4">
             <h3 className="font-semibold text-[#294534]">기본 정보</h3>
             <label className="flex cursor-pointer items-center gap-3">
@@ -2713,7 +2815,7 @@ function ProjectForm({
             {error}
           </p>
         )}
-        <div className="flex justify-end gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
           <button type="button" className="btn-secondary" onClick={onCancel}>
             취소
           </button>
@@ -2783,7 +2885,10 @@ function DetailPage({
   >(initialTab);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [uploadProgress, setUploadProgress] = useState({
+    current: 0,
+    total: 0,
+  });
   const [previewImage, setPreviewImage] = useState<Image | null>(null);
   const [imageToDelete, setImageToDelete] = useState<Image | null>(null);
   const [photoClassificationFilter, setPhotoClassificationFilter] =
@@ -2848,7 +2953,9 @@ function DetailPage({
         !supportedTypes.has(file.type) && !supportedExtension.test(file.name),
     );
     if (unsupportedFile) {
-      setError(`${unsupportedFile.name}: JPG, PNG, WEBP, GIF 형식만 등록할 수 있습니다.`);
+      setError(
+        `${unsupportedFile.name}: JPG, PNG, WEBP, GIF 형식만 등록할 수 있습니다.`,
+      );
       input.value = "";
       return;
     }
@@ -3022,7 +3129,7 @@ function DetailPage({
   };
   const paidPayments = payments?.items || [];
   return (
-    <div className="space-y-6 p-5 sm:p-8">
+    <div className="space-y-5 p-4 sm:space-y-6 sm:p-6 xl:p-8">
       {previewImage && (
         <PhotoViewerModal
           imageUrl={mediaUrl(previewImage.original_url)}
@@ -3042,7 +3149,9 @@ function DetailPage({
             전체 현장
           </button>
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="serif text-3xl text-[#1b3025]">{project.title}</h2>
+            <h2 className="serif text-2xl text-[#1b3025] sm:text-3xl">
+              {project.title}
+            </h2>
             <Badge status={project.status} />
             <ProjectTypeBadge projectType={project.project_type} />
             {project.is_public && (
@@ -3075,9 +3184,7 @@ function DetailPage({
         {[
           ["overview", "현장 개요"],
           ["photos", `사진 ${project.images.length}`],
-          ...(SIMULATION_ENABLED
-            ? [["simulation", "2D·3D 시뮬레이션"]]
-            : []),
+          ...(SIMULATION_ENABLED ? [["simulation", "2D·3D 시뮬레이션"]] : []),
           ["costs", "공사비·입금"],
         ].map(([key, label]) => (
           <button
@@ -3091,7 +3198,7 @@ function DetailPage({
       </div>
       {tab === "overview" && (
         <div className="grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
-          <section className="panel p-5 sm:p-7">
+          <section className="panel p-4 sm:p-6 xl:p-7">
             <h3 className="font-semibold text-[#294534]">현장 정보</h3>
             <div className="mt-5 grid gap-y-6 text-sm sm:grid-cols-2">
               <div>
@@ -3121,7 +3228,9 @@ function DetailPage({
               </div>
               <div>
                 <p className="label !text-[#7a8580]">주거 유형</p>
-                <p className="value-text !text-[#10271d]">{project.housing_type || "미등록"}</p>
+                <p className="value-text !text-[#10271d]">
+                  {project.housing_type || "미등록"}
+                </p>
               </div>
             </div>
             <div className="mt-7 border-t border-[#edf0ec] pt-5">
@@ -3786,9 +3895,9 @@ function MapPage({ onOpen }: { onOpen: (id: string) => void }) {
     };
   }, []);
   return (
-    <div className="grid gap-5 p-5 sm:p-8 lg:h-[calc(100dvh-89px)] lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+    <div className="grid gap-4 p-4 sm:gap-5 sm:p-6 lg:h-[calc(100dvh-81px)] lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden xl:h-[calc(100dvh-89px)] xl:p-8">
       <NaverMap
-        className="min-h-[420px] overflow-hidden rounded-[24px] border border-[#e2e8e2] bg-[#edf2ed] sm:min-h-[560px] lg:h-full lg:min-h-0"
+        className="h-[48dvh] min-h-[320px] overflow-hidden rounded-[20px] border border-[#e2e8e2] bg-[#edf2ed] sm:h-auto sm:min-h-[480px] sm:rounded-[24px] lg:h-full lg:min-h-0"
         markers={mappedProjects.map((project) => ({
           id: project.id,
           latitude: Number(project.latitude),
@@ -3808,7 +3917,9 @@ function MapPage({ onOpen }: { onOpen: (id: string) => void }) {
               현재 {mappedProjects.length}곳 표시
             </span>
           </div>
-          {mapError && <p className="mt-1.5 text-xs text-rose-200">{mapError}</p>}
+          {mapError && (
+            <p className="mt-1.5 text-xs text-rose-200">{mapError}</p>
+          )}
         </div>
         {error ? (
           <p className="flex-1 p-5 text-sm text-[#a14e4e]">{error}</p>

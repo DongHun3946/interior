@@ -74,9 +74,9 @@ const materialLabels: Record<MaterialType, string> = {
   PAINT: "페인트",
   OTHER: "기타",
 };
-const materialTypeOptions: DropdownOption[] = Object.entries(materialLabels).map(
-  ([value, label]) => ({ value, label }),
-);
+const materialTypeOptions: DropdownOption[] = Object.entries(
+  materialLabels,
+).map(([value, label]) => ({ value, label }));
 const scanSourceOptions: DropdownOption[] = [
   { value: "PHOTOS", label: "여러 장의 공간 사진" },
   { value: "VIDEO", label: "공간 동영상" },
@@ -125,7 +125,7 @@ function Plan2D({
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
-      className="h-full min-h-[420px] w-full select-none"
+      className="h-full min-h-[320px] w-full select-none sm:min-h-[420px]"
       onClick={clickFloor}
       role="img"
       aria-label="2D 평면도"
@@ -340,7 +340,7 @@ function Scene3D({
   return (
     <svg
       viewBox="0 0 860 540"
-      className="h-full min-h-[420px] w-full"
+      className="h-full min-h-[320px] w-full sm:min-h-[420px]"
       role="img"
       aria-label="3D 공간 미리보기"
     >
@@ -727,7 +727,9 @@ export default function SimulationWorkspace({
           item.id === scan.id ? { ...item, status: "QUEUED" } : item,
         ),
       );
-      showSuccessToast("파일 업로드가 끝났으며 AI 공간 분석 대기열에 등록했습니다.");
+      showSuccessToast(
+        "파일 업로드가 끝났으며 AI 공간 분석 대기열에 등록했습니다.",
+      );
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -745,7 +747,9 @@ export default function SimulationWorkspace({
     try {
       await api.generateFurnitureFromFiles(projectId, furnitureFiles);
       setFurnitureFiles([]);
-      showSuccessToast("가구 사진을 업로드하고 3D 모델 생성 대기열에 등록했습니다.");
+      showSuccessToast(
+        "가구 사진을 업로드하고 3D 모델 생성 대기열에 등록했습니다.",
+      );
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -766,7 +770,7 @@ export default function SimulationWorkspace({
     );
   if (!simulation || !scene || !room || !version)
     return (
-      <div className="panel flex min-h-[420px] flex-col items-center justify-center p-8 text-center">
+      <div className="panel flex min-h-[320px] flex-col items-center justify-center p-5 text-center sm:min-h-[420px] sm:p-8">
         <div className="rounded-3xl bg-[#edf4ef] p-5 text-[#3d7650]">
           <Cuboid size={38} />
         </div>

@@ -15,6 +15,7 @@ import {
   Printer,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   Trash2,
   UserRoundPlus,
   X,
@@ -391,7 +392,7 @@ function InquiryForm({
     }
   };
   return (
-    <div className="p-5 sm:p-8">
+    <div className="p-4 sm:p-6 xl:p-8">
       <button
         className="mb-5 flex items-center gap-2 text-sm font-semibold text-[#54705e]"
         onClick={onCancel}
@@ -719,7 +720,7 @@ function EstimateEditor({
     }
   };
   return (
-    <div className="p-5 sm:p-8">
+    <div className="p-4 sm:p-6 xl:p-8">
       <button
         className="mb-5 flex items-center gap-2 text-sm font-semibold text-[#54705e]"
         onClick={onCancel}
@@ -1342,7 +1343,7 @@ function InquiryDetail({
   };
   return (
     <>
-      <div className="space-y-6 p-5 sm:p-8">
+      <div className="space-y-5 p-4 sm:space-y-6 sm:p-6 xl:p-8">
         <button
           className="flex items-center gap-2 text-sm font-semibold text-[#54705e]"
           onClick={onBack}
@@ -1464,8 +1465,7 @@ function InquiryDetail({
                   )
                 }
               >
-                <FilePlus2 size={17} />
-                새 견적 작성
+                <FilePlus2 size={17} />새 견적 작성
               </button>
             </div>
             {estimates.length ? (
@@ -1920,6 +1920,7 @@ export default function EstimateInquiriesPage({
   const [status, setStatus] = useState<InquiryStatus | "">("");
   const [consultationDateFrom, setConsultationDateFrom] = useState("");
   const [consultationDateTo, setConsultationDateTo] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -1970,6 +1971,7 @@ export default function EstimateInquiriesPage({
     setStatus("");
     setConsultationDateFrom("");
     setConsultationDateTo("");
+    setFiltersOpen(false);
     setPage(1);
   };
   const filterByStatusSummary = (nextStatus: InquiryStatus) => {
@@ -1977,6 +1979,7 @@ export default function EstimateInquiriesPage({
     setStatus(nextStatus);
     setConsultationDateFrom("");
     setConsultationDateTo("");
+    setFiltersOpen(false);
     setPage(1);
   };
   const open = async (id: string) => {
@@ -2038,10 +2041,10 @@ export default function EstimateInquiriesPage({
       />
     );
   return (
-    <div className="space-y-6 p-5 sm:p-8">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+    <div className="space-y-4 p-4 sm:space-y-6 sm:p-6 xl:p-8">
+      <div className="flex flex-col gap-2.5 xl:flex-row xl:items-start xl:justify-between">
         {stats && (
-          <div className="grid w-full max-w-2xl grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <div className="grid w-full max-w-2xl grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5">
             {[
               {
                 label: "신규 문의",
@@ -2074,7 +2077,7 @@ export default function EstimateInquiriesPage({
             ].map(({ label, value, icon: Icon, tone, statusValue }) => (
               <button
                 type="button"
-                className={`panel flex min-h-16 items-center gap-3 px-3.5 py-2.5 text-left transition ${
+                className={`panel flex min-h-14 items-center gap-2 px-3 py-2 text-left transition sm:min-h-16 sm:gap-3 sm:px-3.5 sm:py-2.5 ${
                   status === statusValue
                     ? "border-[#70a17d] ring-2 ring-[#d9e9dd]"
                     : "hover:-translate-y-0.5 hover:border-[#b8cbbd] hover:shadow-md"
@@ -2087,7 +2090,7 @@ export default function EstimateInquiriesPage({
                 title={`${label} 상태만 조회`}
               >
                 <div
-                  className={`flex size-8 shrink-0 items-center justify-center rounded-md ${tone}`}
+                  className={`flex size-7 shrink-0 items-center justify-center rounded-md sm:size-8 ${tone}`}
                 >
                   <Icon size={16} />
                 </div>
@@ -2095,7 +2098,7 @@ export default function EstimateInquiriesPage({
                   <p className="text-[11px] font-semibold text-[#75827a]">
                     {label}
                   </p>
-                  <p className="mt-0.5 text-lg font-bold leading-none text-[#18372b]">
+                  <p className="mt-0.5 text-base font-bold leading-none text-[#18372b] sm:text-lg">
                     {value}건
                   </p>
                 </div>
@@ -2104,86 +2107,186 @@ export default function EstimateInquiriesPage({
           </div>
         )}
         <button
-          className="btn-primary shrink-0 self-start xl:self-center"
+          className="btn-primary w-full shrink-0 sm:w-auto sm:self-start xl:self-center"
           onClick={() => setFormMode("new")}
         >
           <UserRoundPlus size={17} /> 새 견적 문의
         </button>
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative min-w-64 flex-1">
-          <Search
-            className="absolute left-3 top-3 text-[#8c9990]"
-            size={16}
-          />
-          <input
-            className="field pl-9"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(1);
-            }}
-            placeholder="고객명, 연락처, 주소, 상세 주소 검색"
-          />
+      <div className="space-y-2.5 xl:flex xl:gap-3 xl:space-y-0">
+        <div className="flex min-w-0 flex-1 gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8c9990]"
+              size={16}
+            />
+            <input
+              className={`field pl-9 ${query ? "pr-10" : ""}`}
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(1);
+              }}
+              placeholder="고객명, 연락처, 주소 검색"
+            />
+            {query && (
+              <button
+                type="button"
+                className="absolute right-1.5 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-[#748078] hover:bg-[#edf2ee]"
+                onClick={() => {
+                  setQuery("");
+                  setPage(1);
+                }}
+                aria-label="검색어 지우기"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            className={`relative inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3.5 text-sm font-semibold transition xl:hidden ${
+              filtersOpen ||
+              status ||
+              consultationDateFrom ||
+              consultationDateTo
+                ? "border-[#8eaa96] bg-[#edf5ef] text-[#28563a]"
+                : "border-[#c9d3cb] bg-white text-[#52655a]"
+            }`}
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            aria-controls="estimate-filters"
+          >
+            <SlidersHorizontal size={16} /> 필터
+            {(status || consultationDateFrom || consultationDateTo) && (
+              <span className="flex size-5 items-center justify-center rounded-full bg-[#28563a] text-[10px] font-bold text-white">
+                {Number(Boolean(status)) +
+                  Number(Boolean(consultationDateFrom || consultationDateTo))}
+              </span>
+            )}
+          </button>
         </div>
-        <DropdownSelect
-          className="w-full sm:w-44"
-          value={status}
-          options={inquiryStatusFilterOptions}
-          onChange={(value) => {
-            setStatus(value as InquiryStatus | "");
-            setPage(1);
-          }}
-          ariaLabel="견적 상담 상태 필터"
-        />
-        <div className="flex w-full items-center gap-1.5 sm:w-auto">
-          <span className="shrink-0 text-xs font-semibold text-[#65746b]">
-            상담 일정
-          </span>
-          <input
-            className="field min-w-0 flex-1 sm:w-36 sm:flex-none"
-            type="date"
-            aria-label="상담 일정 시작일"
-            onClick={showDatePicker}
-            max={consultationDateTo || undefined}
-            value={consultationDateFrom}
-            onChange={(event) => {
-              const nextDate = event.target.value;
-              setConsultationDateFrom(nextDate);
-              if (consultationDateTo && consultationDateTo < nextDate)
-                setConsultationDateTo("");
-              setPage(1);
-            }}
-          />
-          <span className="text-sm text-[#8a968e]">~</span>
-          <input
-            className="field min-w-0 flex-1 sm:w-36 sm:flex-none"
-            type="date"
-            aria-label="상담 일정 종료일"
-            onClick={showDatePicker}
-            min={consultationDateFrom || undefined}
-            value={consultationDateTo}
-            onChange={(event) => {
-              setConsultationDateTo(event.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-        <button
-          type="button"
-          className="btn-secondary shrink-0 sm:px-3"
-          onClick={resetFilters}
-          disabled={
-            !query &&
-            !status &&
-            !consultationDateFrom &&
-            !consultationDateTo &&
-            page === 1
-          }
+        <div
+          id="estimate-filters"
+          className={`${filtersOpen ? "flex" : "hidden"} flex-col gap-2.5 rounded-2xl border border-[#d7e0d9] bg-white p-3 shadow-[0_8px_24px_rgba(24,55,43,.06)] xl:contents`}
         >
-          <RotateCcw size={15} /> 초기화
-        </button>
+          <DropdownSelect
+            className="w-full xl:w-44"
+            value={status}
+            options={inquiryStatusFilterOptions}
+            onChange={(value) => {
+              setStatus(value as InquiryStatus | "");
+              setPage(1);
+            }}
+            ariaLabel="견적 상담 상태 필터"
+          />
+          <div className="grid w-full grid-cols-2 gap-2 xl:flex xl:w-auto xl:items-center xl:gap-1.5">
+            <span className="col-span-2 text-xs font-semibold text-[#65746b] xl:col-auto xl:shrink-0">
+              상담 일정
+            </span>
+            <label className="min-w-0">
+              <span className="mb-1 block text-[11px] font-semibold text-[#75827a] xl:hidden">
+                시작일
+              </span>
+              <input
+                className="field min-w-0 !py-2.5 xl:w-36"
+                type="date"
+                aria-label="상담 일정 시작일"
+                onClick={showDatePicker}
+                max={consultationDateTo || undefined}
+                value={consultationDateFrom}
+                onChange={(event) => {
+                  const nextDate = event.target.value;
+                  setConsultationDateFrom(nextDate);
+                  if (consultationDateTo && consultationDateTo < nextDate)
+                    setConsultationDateTo("");
+                  setPage(1);
+                }}
+              />
+            </label>
+            <span className="hidden text-sm text-[#8a968e] xl:block">~</span>
+            <label className="min-w-0">
+              <span className="mb-1 block text-[11px] font-semibold text-[#75827a] xl:hidden">
+                종료일
+              </span>
+              <input
+                className="field min-w-0 !py-2.5 xl:w-36"
+                type="date"
+                aria-label="상담 일정 종료일"
+                onClick={showDatePicker}
+                min={consultationDateFrom || undefined}
+                value={consultationDateTo}
+                onChange={(event) => {
+                  setConsultationDateTo(event.target.value);
+                  setPage(1);
+                }}
+              />
+            </label>
+          </div>
+          {(status || consultationDateFrom || consultationDateTo) && (
+            <button
+              type="button"
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 self-end px-2 text-sm font-semibold text-[#5f7166] xl:hidden"
+              onClick={resetFilters}
+            >
+              <RotateCcw size={14} /> 필터 초기화
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-secondary hidden shrink-0 xl:inline-flex xl:px-3"
+            onClick={resetFilters}
+            disabled={
+              !query &&
+              !status &&
+              !consultationDateFrom &&
+              !consultationDateTo &&
+              page === 1
+            }
+          >
+            <RotateCcw size={15} /> 초기화
+          </button>
+        </div>
       </div>
+      {(status || consultationDateFrom || consultationDateTo) && (
+        <div
+          className="flex flex-wrap gap-2 xl:hidden"
+          aria-label="적용 중인 필터"
+        >
+          {status && (
+            <button
+              type="button"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#e9f3ec] px-3 text-xs font-semibold text-[#2f6241]"
+              onClick={() => {
+                setStatus("");
+                setPage(1);
+              }}
+              aria-label={`${inquiryStatusLabels[status]} 필터 해제`}
+            >
+              {inquiryStatusLabels[status]} <X size={13} />
+            </button>
+          )}
+          {(consultationDateFrom || consultationDateTo) && (
+            <button
+              type="button"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#eef1f7] px-3 text-xs font-semibold text-[#4c5e76]"
+              onClick={() => {
+                setConsultationDateFrom("");
+                setConsultationDateTo("");
+                setPage(1);
+              }}
+              aria-label="상담 일정 필터 해제"
+            >
+              {consultationDateFrom || "시작일"} ~{" "}
+              {consultationDateTo || "종료일"}
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      )}
+      <p className="text-sm font-semibold text-[#65746b]">
+        총 <span className="font-bold text-[#244333]">{total}</span>건
+      </p>
       <section className="panel overflow-hidden">
         {error && (
           <p className="m-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
@@ -2201,7 +2304,7 @@ export default function EstimateInquiriesPage({
                 <button
                   key={item.id}
                   onClick={() => open(item.id)}
-                  className="grid w-full gap-3 p-5 text-left transition hover:bg-[#fafbf9] xl:grid-cols-[1.05fr_1fr_360px_150px_24px] xl:items-center"
+                  className="grid w-full gap-3 p-4 text-left transition hover:bg-[#fafbf9] sm:p-5 xl:grid-cols-[1.05fr_1fr_360px_150px_24px] xl:items-center"
                 >
                   <div>
                     <div className="flex items-center gap-2">

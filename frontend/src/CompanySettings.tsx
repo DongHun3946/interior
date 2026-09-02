@@ -45,7 +45,7 @@ export default function CompanySettingsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const set = <K extends keyof CompanySettings,>(
+  const set = <K extends keyof CompanySettings>(
     key: K,
     value: CompanySettings[K],
   ) => {
@@ -72,15 +72,20 @@ export default function CompanySettingsPage() {
   };
 
   return (
-    <div className="p-5 sm:p-8">
-      <form onSubmit={submit} className="panel mx-auto max-w-5xl overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#e6ebe7] px-6 py-6 sm:px-8">
+    <div className="p-4 sm:p-6 xl:p-8">
+      <form
+        onSubmit={submit}
+        className="panel mx-auto max-w-5xl overflow-hidden"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#e6ebe7] px-4 py-5 sm:px-6 sm:py-6 xl:px-8">
           <div className="flex items-center gap-4">
             <div className="rounded-2xl bg-[#e8f1e9] p-3 text-[#376246]">
               <Building2 size={24} />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-[#203a2d]">업체 정보</h2>
+              <h2 className="text-xl font-bold text-[#203a2d] sm:text-2xl">
+                업체 정보
+              </h2>
               <p className="mt-1 text-sm text-[#7b8980]">
                 견적서와 고객 안내에 사용할 업체 기본 정보를 관리합니다.
               </p>
@@ -88,7 +93,7 @@ export default function CompanySettingsPage() {
           </div>
         </div>
 
-        <div className="p-6 sm:p-8">
+        <div className="p-4 sm:p-6 xl:p-8">
           {loading ? (
             <p className="py-16 text-center text-sm text-[#7b8980]">
               업체 정보를 불러오는 중입니다.
@@ -97,59 +102,61 @@ export default function CompanySettingsPage() {
             <div className="space-y-8">
               <div className="grid gap-5 md:grid-cols-2">
                 <div>
-                <label className="label">상호</label>
-                <input
-                  className="field"
-                  value={form.business_name}
-                  onChange={(event) => set("business_name", event.target.value)}
-                />
-              </div>
-              <div>
-                <label className="label">대표자</label>
-                <input
-                  className="field"
-                  value={form.representative_name}
-                  onChange={(event) =>
-                    set("representative_name", event.target.value)
-                  }
-                />
-              </div>
-              <div>
-                <label className="label">사업자등록번호</label>
-                <input
-                  className="field"
-                  value={form.business_registration_number}
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    set("business_registration_number", event.target.value)
-                  }
-                />
-              </div>
-              <div>
-                <label className="label">전화번호</label>
-                <input
-                  className="field"
-                  type="tel"
-                  value={form.phone}
-                  onChange={(event) => set("phone", event.target.value)}
-                />
-              </div>
-              <div>
-                <label className="label">FAX</label>
-                <input
-                  className="field"
-                  type="tel"
-                  value={form.fax}
-                  onChange={(event) => set("fax", event.target.value)}
-                />
-              </div>
+                  <label className="label">상호</label>
+                  <input
+                    className="field"
+                    value={form.business_name}
+                    onChange={(event) =>
+                      set("business_name", event.target.value)
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="label">대표자</label>
+                  <input
+                    className="field"
+                    value={form.representative_name}
+                    onChange={(event) =>
+                      set("representative_name", event.target.value)
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="label">사업자등록번호</label>
+                  <input
+                    className="field"
+                    value={form.business_registration_number}
+                    inputMode="numeric"
+                    onChange={(event) =>
+                      set("business_registration_number", event.target.value)
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="label">전화번호</label>
+                  <input
+                    className="field"
+                    type="tel"
+                    value={form.phone}
+                    onChange={(event) => set("phone", event.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="label">FAX</label>
+                  <input
+                    className="field"
+                    type="tel"
+                    value={form.fax}
+                    onChange={(event) => set("fax", event.target.value)}
+                  />
+                </div>
                 <div className="md:col-span-2">
-                <label className="label">주소</label>
-                <input
-                  className="field"
-                  value={form.address}
-                  onChange={(event) => set("address", event.target.value)}
-                />
+                  <label className="label">주소</label>
+                  <input
+                    className="field"
+                    value={form.address}
+                    onChange={(event) => set("address", event.target.value)}
+                  />
                 </div>
               </div>
               <section className="rounded-2xl border border-[#dce6de] bg-[#f7faf7] p-5 sm:p-6">
@@ -161,7 +168,8 @@ export default function CompanySettingsPage() {
                     <div>
                       <h3 className="font-bold text-[#294534]">로그인 보안</h3>
                       <p className="mt-1 text-sm leading-6 text-[#718078]">
-                        관리자가 다시 로그인하기 전까지 유지할 시간을 설정합니다.
+                        관리자가 다시 로그인하기 전까지 유지할 시간을
+                        설정합니다.
                       </p>
                     </div>
                   </div>
@@ -180,8 +188,10 @@ export default function CompanySettingsPage() {
                   </div>
                 </div>
                 <div className="mt-4 rounded-xl border border-[#e1e8e2] bg-white px-4 py-3 text-xs leading-5 text-[#68786e]">
-                  변경한 시간은 <strong className="text-[#365642]">다음 로그인부터</strong>{" "}
-                  발급되는 JWT에 적용됩니다. 공용 컴퓨터에서는 사용 후 반드시 로그아웃해 주세요.
+                  변경한 시간은{" "}
+                  <strong className="text-[#365642]">다음 로그인부터</strong>{" "}
+                  발급되는 JWT에 적용됩니다. 공용 컴퓨터에서는 사용 후 반드시
+                  로그아웃해 주세요.
                 </div>
               </section>
             </div>
@@ -195,7 +205,10 @@ export default function CompanySettingsPage() {
 
           {!loading && (
             <div className="mt-8 flex justify-end border-t border-[#e9ede9] pt-6">
-              <button className="btn-primary" disabled={saving}>
+              <button
+                className="btn-primary w-full sm:w-auto"
+                disabled={saving}
+              >
                 <Save size={16} />
                 {saving ? "저장 중…" : "설정 저장"}
               </button>

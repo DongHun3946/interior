@@ -32,12 +32,14 @@ export default function ConfirmModal({
     >
       <div>
         {children && (
-          <div className="border-t border-[#e7ebe8] px-5 py-4">{children}</div>
+          <div className="border-t border-[#e7ebe8] px-4 py-4 sm:px-5">
+            {children}
+          </div>
         )}
-        <div className="flex justify-end gap-2 border-t border-[#e7ebe8] bg-[#fafbfa] px-5 py-4">
+        <div className="grid grid-cols-2 gap-2 border-t border-[#e7ebe8] bg-[#fafbfa] px-4 py-4 sm:flex sm:justify-end sm:px-5">
           <button
             type="button"
-            className="inline-flex min-w-16 items-center justify-center rounded-lg border border-[#d8ded9] bg-white px-4 py-2 text-sm font-semibold text-[#405449] transition hover:bg-[#f3f5f3] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-11 min-w-16 items-center justify-center rounded-xl border border-[#d8ded9] bg-white px-4 py-2 text-sm font-semibold text-[#405449] transition hover:bg-[#f3f5f3] disabled:cursor-not-allowed disabled:opacity-50"
             onClick={onClose}
             disabled={busy}
           >
@@ -47,8 +49,8 @@ export default function ConfirmModal({
             type="button"
             className={
               tone === "danger"
-                ? "inline-flex min-w-16 items-center justify-center rounded-lg bg-[#c83d45] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#ad333a] disabled:cursor-not-allowed disabled:opacity-50"
-                : "inline-flex min-w-16 items-center justify-center rounded-lg bg-[#234c38] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#193c2b] disabled:cursor-not-allowed disabled:opacity-50"
+                ? "inline-flex min-h-11 min-w-16 items-center justify-center rounded-xl bg-[#c83d45] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#ad333a] disabled:cursor-not-allowed disabled:opacity-50"
+                : "inline-flex min-h-11 min-w-16 items-center justify-center rounded-xl bg-[#234c38] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#193c2b] disabled:cursor-not-allowed disabled:opacity-50"
             }
             onClick={onConfirm}
             disabled={busy}

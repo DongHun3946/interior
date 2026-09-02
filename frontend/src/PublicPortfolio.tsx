@@ -115,7 +115,7 @@ export default function PublicPortfolio() {
     return (
       <div className="min-h-screen bg-white text-[#191f28]">
         <header className="sticky top-0 z-20 border-b border-[#244b3b] bg-[#17372b]/95 text-white backdrop-blur">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
             <button
               onClick={() => goList()}
               className="flex items-center gap-2 text-sm font-semibold"
@@ -138,7 +138,7 @@ export default function PublicPortfolio() {
               />
             </div>
           )}
-          <div className="mx-auto max-w-5xl px-5 py-10 sm:py-16">
+          <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-16">
             <p className="text-sm font-semibold text-[#2f7a4b]">
               {selected.public_address}
             </p>
@@ -164,7 +164,7 @@ export default function PublicPortfolio() {
               </p>
             )}
             {selected.work_scope && (
-              <section className="mt-12 rounded-2xl bg-[#f7f8fa] p-6">
+              <section className="mt-10 rounded-2xl bg-[#f7f8fa] p-4 sm:mt-12 sm:p-6">
                 <p className="text-sm font-bold">공사 범위</p>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[#6b7684]">
                   {selected.work_scope}
@@ -175,7 +175,7 @@ export default function PublicPortfolio() {
               <h2 className="text-2xl font-bold tracking-[-.03em]">
                 공간의 변화
               </h2>
-              <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3">
+              <div className="mt-5 grid grid-cols-2 gap-2.5 sm:mt-6 sm:gap-3 md:grid-cols-3">
                 {selected.images.map((image, index) => (
                   <button
                     type="button"
@@ -244,13 +244,13 @@ export default function PublicPortfolio() {
   return (
     <div className="min-h-screen bg-[#f7f8fa] text-[#191f28]">
       <header className="bg-[#17372b] text-white">
-        <div className="mx-auto flex max-w-6xl items-center px-5 py-5">
+        <div className="mx-auto flex max-w-6xl items-center px-4 py-4 sm:px-6 sm:py-5">
           <a href="/" className="font-bold tracking-[-.02em] text-white">
             Jeil Interior
           </a>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-5 py-14 sm:py-20">
+      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-16 lg:py-20">
         <div className="max-w-2xl">
           <p className="text-sm font-semibold text-[#2f7a4b]">PORTFOLIO</p>
           <h1 className="mt-3 text-4xl font-bold leading-tight tracking-[-.05em] sm:text-6xl">
@@ -293,7 +293,7 @@ export default function PublicPortfolio() {
                       </div>
                     )}
                   </div>
-                  <div className="p-6">
+                  <div className="p-4 sm:p-6">
                     <p className="text-xs font-semibold text-[#2f7a4b]">
                       {item.public_address}
                     </p>

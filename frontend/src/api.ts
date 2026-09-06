@@ -141,11 +141,6 @@ export const api = {
       `/api/v1/projects${params ? (params.startsWith("?") ? params : `?${params}`) : ""}`,
     ),
   project: (id: string) => request<Project>(`/api/v1/projects/${id}`),
-  createProject: (body: unknown) =>
-    request<Project>("/api/v1/projects", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
   updateProject: (id: string, body: unknown) =>
     request<Project>(`/api/v1/projects/${id}`, {
       method: "PATCH",

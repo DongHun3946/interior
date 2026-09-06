@@ -63,8 +63,33 @@ class SimulationFlowTest(unittest.TestCase):
                 configured_claims["exp"] - configured_claims["iat"], 240 * 60
             )
 
-            project = client.post("/api/v1/projects", json={"title": "시뮬레이션 테스트", "address": "서울특별시 중구 세종대로 110"}, headers=headers)
+            direct_project = client.post(
+                "/api/v1/projects",
+                json={
+                    "title": "직접 등록 차단 확인",
+                    "address": "서울특별시 중구 세종대로 110",
+                },
+                headers=headers,
+            )
+            self.assertEqual(direct_project.status_code, 405, direct_project.text)
+
+            initial_inquiry = client.post(
+                "/api/v1/estimate-inquiries",
+                json={
+                    "customer_name": "시뮬레이션 고객",
+                    "customer_phone": "010-0000-0000",
+                    "address": "서울특별시 중구 세종대로 110",
+                },
+                headers=headers,
+            )
+            self.assertEqual(initial_inquiry.status_code, 201, initial_inquiry.text)
+            project = client.post(
+                f"/api/v1/estimate-inquiries/{initial_inquiry.json()['id']}/convert",
+                json={"project_title": "시뮬레이션 테스트"},
+                headers=headers,
+            )
             self.assertEqual(project.status_code, 201, project.text)
+            self.assertIsNone(project.json()["contract_estimate_id"])
             project_id = project.json()["id"]
 
             recent = client.get("/api/v1/projects?page_size=5&sort=created_at", headers=headers)

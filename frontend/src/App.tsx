@@ -2139,10 +2139,10 @@ function ProjectCard({
 
 function ProjectsPage({
   onOpen,
-  onCreate,
+  onOpenEstimates,
 }: {
   onOpen: (id: string) => void;
-  onCreate: () => void;
+  onOpenEstimates: () => void;
 }) {
   const [items, setItems] = useState<ProjectListItem[]>([]);
   const [query, setQuery] = useState("");
@@ -2237,14 +2237,6 @@ function ProjectsPage({
             {showArchived ? <FolderKanban size={17} /> : <Trash2 size={17} />}
             {showArchived ? "전체 현장" : "삭제된 현장"}
           </button>
-          {!showArchived && (
-            <button
-              className="btn-primary flex-1 sm:flex-none"
-              onClick={onCreate}
-            >
-              <Plus size={17} />새 현장 등록
-            </button>
-          )}
         </div>
       </div>
       <div className="space-y-2.5 lg:flex lg:gap-3 lg:space-y-0">
@@ -2422,13 +2414,13 @@ function ProjectsPage({
           message={
             showArchived
               ? "삭제한 현장이 이곳에 표시됩니다."
-              : "첫 번째 프로젝트를 등록하고 사진과 공사비를 기록해보세요."
+              : "견적·상담에서 계약 완료 처리하면 현장이 자동 생성됩니다."
           }
           action={
             !showArchived ? (
-              <button className="btn-primary" onClick={onCreate}>
-                <Plus size={16} />
-                현장 등록하기
+              <button className="btn-primary" onClick={onOpenEstimates}>
+                <ClipboardList size={16} />
+                견적·상담으로 이동
               </button>
             ) : undefined
           }
@@ -2562,29 +2554,11 @@ function ProjectForm({
   onDone,
   onCancel,
 }: {
-  project?: Project;
+  project: Project;
   onDone: (project: Project) => void;
   onCancel: () => void;
 }) {
-  const [form, setForm] = useState<Record<string, unknown>>(
-    project
-      ? { ...project }
-      : {
-          title: "",
-          project_type: "INTERIOR",
-          status: "PLANNING",
-          address: "",
-          address_detail: "",
-          is_public: false,
-          housing_type: "",
-          area_pyeong: "",
-          planned_start_date: "",
-          planned_end_date: "",
-          work_scope: "",
-          description: "",
-          internal_memo: "",
-        },
-  );
+  const [form, setForm] = useState<Record<string, unknown>>({ ...project });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
@@ -2611,12 +2585,8 @@ function ProjectForm({
         planned_start_date: form.planned_start_date || null,
         planned_end_date: form.planned_end_date || null,
       };
-      const result = project
-        ? await api.updateProject(project.id, body)
-        : await api.createProject(body);
-      showSuccessToast(
-        project ? "현장 정보를 수정했습니다." : "새 현장을 등록했습니다.",
-      );
+      const result = await api.updateProject(project.id, body);
+      showSuccessToast("현장 정보를 수정했습니다.");
       onDone(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "저장에 실패했습니다.");
@@ -2635,7 +2605,7 @@ function ProjectForm({
       </button>
       <div className="mb-7">
         <h2 className="serif text-3xl text-[#1b3025]">
-          {project ? "현장 정보 수정" : "새 현장 등록"}
+          현장 정보 수정
         </h2>
       </div>
       <form onSubmit={submit} className="space-y-6">
@@ -3991,7 +3961,7 @@ function adminRoute(pathname: string, search = ""): AdminRoute {
           : undefined,
     };
   if (/^\/admin\/projects\/new\/?$/.test(pathname))
-    return { page: "new-project", projectId: null };
+    return { page: "estimates", projectId: null };
   if (/^\/admin\/projects\/?$/.test(pathname))
     return { page: "projects", projectId: null };
   if (/^\/admin\/estimates\/?$/.test(pathname)) {
@@ -4018,7 +3988,6 @@ function adminRoute(pathname: string, search = ""): AdminRoute {
 
 function adminPath(page: string, projectId?: string | null) {
   if (page === "projects") return "/admin/projects";
-  if (page === "new-project") return "/admin/projects/new";
   if (page === "detail" && projectId) return `/admin/projects/${projectId}`;
   if (page === "estimates") return "/admin/estimates";
   if (page === "photos") return "/admin/photos";
@@ -4167,8 +4136,8 @@ function AdminApp() {
     );
   let content: ReactNode;
   let title = "대시보드";
-  if (formProject !== undefined || page === "new-project") {
-    title = formProject ? "현장 정보 수정" : "새 현장 등록";
+  if (formProject !== undefined) {
+    title = "현장 정보 수정";
     content = (
       <ProjectForm
         project={formProject}
@@ -4205,7 +4174,7 @@ function AdminApp() {
     content = (
       <ProjectsPage
         onOpen={(id) => navigateAdmin("detail", id)}
-        onCreate={() => navigateAdmin("new-project")}
+        onOpenEstimates={() => navigateAdmin("estimates")}
       />
     );
   } else if (page === "estimates") {

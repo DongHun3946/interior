@@ -17,7 +17,7 @@ from .core.config import get_settings
 from . import audit as _audit  # Registers transaction-scoped audit listeners.
 from .db import Base, engine, get_db
 from .models import CompanySettings, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, Project, ProjectContractEstimateHistory, ProjectImage, ProjectStatus, ProjectStatusHistory, ProjectType, User, UserRole
-from .schemas import AdminImageList, AdminImageOut, CompanySettingsOut, CompanySettingsUpdate, ContractEstimateApply, ContractEstimateHistoryOut, ContractEstimateLineOut, ContractEstimateReference, CostSummary, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, ManagementOverview, ManagementOverviewAccess, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectCreate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
+from .schemas import AdminImageList, AdminImageOut, CompanySettingsOut, CompanySettingsUpdate, ContractEstimateApply, ContractEstimateHistoryOut, ContractEstimateLineOut, ContractEstimateReference, CostSummary, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, ManagementOverview, ManagementOverviewAccess, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
 from .security import create_access_token, get_current_user, hash_password, verify_password
 from .request_context import set_authenticated_user
 from .request_logging import install_request_logging
@@ -400,17 +400,6 @@ def list_projects(
         cover = next((image for image in active_images if image.is_cover), None) or next(iter(active_images), None)
         items.append(ProjectListItem.model_validate({**project.__dict__, "cover_image": cover}))
     return ProjectList(items=items, page=page, page_size=page_size, total=total)
-
-
-@app.post("/api/v1/projects", response_model=ProjectOut, status_code=201)
-def create_project(payload: ProjectCreate, user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    project = Project(**payload.model_dump(), created_by=user.id)
-    db.add(project)
-    db.flush()
-    db.add(ProjectStatusHistory(project_id=project.id, to_status=project.status, changed_by=user.id, note="현장 등록"))
-    db.commit()
-    db.refresh(project)
-    return project
 
 
 @app.get("/api/v1/projects/{project_id}", response_model=ProjectOut)

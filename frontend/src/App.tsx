@@ -4229,6 +4229,7 @@ function AdminApp() {
         }
         setPage={(p) => navigateAdmin(p)}
         onLogout={() => {
+          void api.logout().catch(() => undefined);
           localStorage.removeItem("interior_token");
           setAuthenticated(false);
           history.replaceState({}, "", "/admin/login");

@@ -2,12 +2,19 @@
 	encode zstd gzip
 
 	@backend path /api/* /media/* /health
+	request_body {
+		max_size 525MB
+	}
 	reverse_proxy @backend backend:8000
 	reverse_proxy frontend:80
 
 	header {
 		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
 		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
+		Content-Security-Policy "base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"
 	}
 }

@@ -10,9 +10,10 @@ os.environ["MEDIA_DIR"] = str(Path(TEST_ROOT.name, "media"))
 os.environ["STORAGE_BACKEND"] = "local"
 os.environ["ADMIN_LOGIN_ID"] = "simulation-test"
 os.environ["ADMIN_PASSWORD"] = "test-password"
+os.environ["SECRET_KEY"] = "simulation-test-secret-key-32-bytes"
 
 from fastapi.testclient import TestClient
-from jose import jwt
+import jwt
 from sqlalchemy import inspect
 
 from backend.app.main import app
@@ -28,9 +29,24 @@ class SimulationFlowTest(unittest.TestCase):
 
     def test_create_edit_version_verify_material_and_scan(self):
         with TestClient(app) as client:
+            for attempt in range(8):
+                rejected_login = client.post(
+                    "/api/v1/auth/login",
+                    data={"username": "rate-limit-test", "password": "wrong"},
+                )
+                self.assertEqual(
+                    rejected_login.status_code,
+                    429 if attempt == 7 else 401,
+                    rejected_login.text,
+                )
+            self.assertIn("Retry-After", rejected_login.headers)
+
             login = client.post("/api/v1/auth/login", data={"username": "simulation-test", "password": "test-password"})
             self.assertEqual(login.status_code, 200, login.text)
             self.assertEqual(login.json()["user"]["login_id"], "simulation-test")
+            self.assertIn("HttpOnly", login.headers["set-cookie"])
+            self.assertIn("Path=/media", login.headers["set-cookie"])
+            self.assertIn("SameSite=strict", login.headers["set-cookie"])
             headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 
             company_payload = {
@@ -56,8 +72,9 @@ class SimulationFlowTest(unittest.TestCase):
                 "/api/v1/auth/login",
                 data={"username": "simulation-test", "password": "test-password"},
             )
-            configured_claims = jwt.get_unverified_claims(
-                configured_login.json()["access_token"]
+            configured_claims = jwt.decode(
+                configured_login.json()["access_token"],
+                options={"verify_signature": False},
             )
             self.assertEqual(
                 configured_claims["exp"] - configured_claims["iat"], 240 * 60
@@ -111,22 +128,41 @@ class SimulationFlowTest(unittest.TestCase):
 
             first_photo = client.post(
                 f"/api/v1/projects/{project_id}/images",
-                files={"file": ("first.jpg", b"first", "image/jpeg")},
+                files={"file": ("first.jpg", b"\xff\xd8\xfffirst", "image/jpeg")},
                 headers=headers,
             )
             second_photo = client.post(
                 f"/api/v1/projects/{project_id}/images",
-                files={"file": ("second.jpg", b"second", "image/jpeg")},
+                files={"file": ("second.jpg", b"\xff\xd8\xffsecond", "image/jpeg")},
                 headers=headers,
             )
             self.assertTrue(first_photo.json()["is_cover"])
             self.assertFalse(second_photo.json()["is_cover"])
+            private_media_url = first_photo.json()["original_url"]
+            self.assertEqual(client.get(private_media_url).status_code, 200)
+            self.assertEqual(TestClient(app).get(private_media_url).status_code, 404)
             classified_photo = client.patch(
                 f"/api/v1/projects/{project_id}/images/{second_photo.json()['id']}",
                 json={"classification": "거실", "is_public": True},
                 headers=headers,
             )
             self.assertEqual(classified_photo.status_code, 200, classified_photo.text)
+            public_project = client.patch(
+                f"/api/v1/projects/{project_id}",
+                json={"is_public": True},
+                headers=headers,
+            )
+            self.assertEqual(public_project.status_code, 200, public_project.text)
+            completed_project = client.patch(
+                f"/api/v1/projects/{project_id}/status",
+                json={"status": "COMPLETED"},
+                headers=headers,
+            )
+            self.assertEqual(completed_project.status_code, 200, completed_project.text)
+            self.assertEqual(
+                TestClient(app).get(classified_photo.json()["original_url"]).status_code,
+                200,
+            )
             photo_library = client.get(
                 f"/api/v1/images?project_id={project_id}&classification=거실&is_public=true",
                 headers=headers,
@@ -179,7 +215,7 @@ class SimulationFlowTest(unittest.TestCase):
             scan = client.post(
                 f"/api/v1/simulations/{simulation['id']}/scan-files",
                 data={"source_type": "PHOTOS"},
-                files=[("files", ("room.jpg", b"test-image", "image/jpeg"))],
+                files=[("files", ("room.jpg", b"\xff\xd8\xfftest-image", "image/jpeg"))],
                 headers=headers,
             )
             self.assertEqual(scan.status_code, 201, scan.text)
@@ -189,11 +225,14 @@ class SimulationFlowTest(unittest.TestCase):
 
             furniture = client.post(
                 f"/api/v1/projects/{project_id}/design-assets/generate-from-files",
-                files=[("files", ("chair-front.jpg", b"front", "image/jpeg")), ("files", ("chair-side.jpg", b"side", "image/jpeg"))],
+                files=[("files", ("chair-front.jpg", b"\xff\xd8\xfffront", "image/jpeg")), ("files", ("chair-side.jpg", b"\xff\xd8\xffside", "image/jpeg"))],
                 headers=headers,
             )
             self.assertEqual(furniture.status_code, 202, furniture.text)
             self.assertEqual(furniture.json()["job_type"], "FURNITURE_3D")
+            logout = client.post("/api/v1/auth/logout", headers=headers)
+            self.assertEqual(logout.status_code, 204, logout.text)
+            self.assertNotIn("interior_media_session", client.cookies)
 
     def test_z_converted_inquiry_reports_archived_project(self):
         with TestClient(app) as client:

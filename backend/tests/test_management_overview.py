@@ -11,6 +11,8 @@ from backend.app.schemas import ManagementOverviewAccess
 
 class ManagementOverviewTest(unittest.TestCase):
     def setUp(self):
+        self.request = Mock()
+        self.request.client.host = "testclient"
         self.user = User(
             login_id="admin",
             password_hash="unused-for-secondary-authentication",
@@ -29,6 +31,7 @@ class ManagementOverviewTest(unittest.TestCase):
             with self.assertRaises(HTTPException) as raised:
                 management_overview(
                     ManagementOverviewAccess(password="wrong-password"),
+                    self.request,
                     self.user,
                     db,
                 )
@@ -47,6 +50,7 @@ class ManagementOverviewTest(unittest.TestCase):
         ):
             result = management_overview(
                 ManagementOverviewAccess(password="correct-password"),
+                self.request,
                 self.user,
                 db,
             )
@@ -65,6 +69,7 @@ class ManagementOverviewTest(unittest.TestCase):
             with self.assertRaises(HTTPException) as raised:
                 management_overview(
                     ManagementOverviewAccess(password="any-password"),
+                    self.request,
                     self.user,
                     db,
                 )
@@ -88,6 +93,7 @@ class ManagementOverviewTest(unittest.TestCase):
                     date_from=date(2026, 8, 1),
                     date_to=date(2026, 8, 31),
                 ),
+                self.request,
                 self.user,
                 db,
             )

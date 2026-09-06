@@ -18,6 +18,17 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
+    command:
+      - /app/.venv/bin/uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --proxy-headers
+      - --forwarded-allow-ips=*
+    security_opt:
+      - no-new-privileges:true
     environment:
       ENVIRONMENT: production
       DATABASE_HOST: db
@@ -65,6 +76,8 @@ services:
         VITE_NAVER_MAP_KEY_ID: ${NAVER_MAPS_CLIENT_ID:-}
         VITE_ENABLE_SIMULATION: ${VITE_ENABLE_SIMULATION:-false}
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     expose:
       - "80"
     depends_on:
@@ -74,6 +87,8 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     environment:
       DOMAIN: ${DOMAIN:?DOMAIN must be set}
     ports:

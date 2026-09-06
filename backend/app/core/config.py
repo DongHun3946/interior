@@ -39,6 +39,41 @@ class Settings(BaseSettings):
     naver_maps_client_id: str = ""
     naver_maps_client_secret: str = ""
 
+    @property
+    def is_production(self) -> bool:
+        return self.environment.strip().lower() == "production"
+
+    def validate_production_security(self) -> None:
+        if not self.is_production:
+            return
+
+        errors: list[str] = []
+        if "CHANGE_ME" in self.secret_key.upper() or len(self.secret_key) < 32:
+            errors.append("SECRET_KEY must be a random value of at least 32 characters")
+        if "CHANGE_ME" in self.database_password.upper() or len(self.database_password) < 16:
+            errors.append("DATABASE_PASSWORD must be at least 16 characters")
+        admin_password_bytes = self.admin_password.encode("utf-8")
+        if "CHANGE_ME" in self.admin_password.upper() or len(admin_password_bytes) < 12:
+            errors.append("ADMIN_PASSWORD must be at least 12 bytes")
+        if len(admin_password_bytes) > 72:
+            errors.append("ADMIN_PASSWORD must not exceed 72 bytes")
+        if self.management_overview_password:
+            overview_password_bytes = self.management_overview_password.encode("utf-8")
+            if len(overview_password_bytes) < 12:
+                errors.append("MANAGEMENT_OVERVIEW_PASSWORD must be at least 12 bytes")
+        origins = self.cors_origin_list
+        if not origins or "*" in origins:
+            errors.append("CORS_ORIGINS must contain explicit HTTPS origins")
+        elif any(not origin.startswith("https://") for origin in origins):
+            errors.append("Every production CORS origin must use HTTPS")
+        if self.uses_r2 and not self.r2_public_base_url.startswith("https://"):
+            errors.append("R2_PUBLIC_BASE_URL must use HTTPS")
+        if len({self.secret_key, self.database_password, self.admin_password}) < 3:
+            errors.append("SECRET_KEY, DATABASE_PASSWORD, and ADMIN_PASSWORD must be different")
+
+        if errors:
+            raise RuntimeError("Unsafe production configuration: " + "; ".join(errors))
+
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
         env_file_encoding="utf-8",

@@ -51,7 +51,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = options.method || "GET";
   let response: Response;
   try {
-    response = await fetch(`${API}${path}`, { ...options, headers });
+    response = await fetch(`${API}${path}`, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
   } catch (reason) {
     const error = new ApiError("서버에 연결하지 못했습니다.", {
       status: 0,
@@ -109,6 +113,10 @@ export const api = {
     request<{ access_token: string; user: User }>("/api/v1/auth/login", {
       method: "POST",
       body: new URLSearchParams({ username: loginId, password }),
+    }),
+  logout: () =>
+    request<void>("/api/v1/auth/logout", {
+      method: "POST",
     }),
   me: () => request<User>("/api/v1/auth/me"),
   dashboard: () => request<Dashboard>("/api/v1/dashboard/summary"),

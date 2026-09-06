@@ -6,10 +6,10 @@ import secrets
 from uuid import UUID
 
 import httpx
-from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
@@ -18,7 +18,7 @@ from . import audit as _audit  # Registers transaction-scoped audit listeners.
 from .db import Base, engine, get_db
 from .models import CompanySettings, EstimateDocument, EstimateInquiry, EstimateLine, ImageCategory, InquiryStatus, Payment, Project, ProjectContractEstimateHistory, ProjectImage, ProjectStatus, ProjectStatusHistory, ProjectType, User, UserRole
 from .schemas import AdminImageList, AdminImageOut, CompanySettingsOut, CompanySettingsUpdate, ContractEstimateApply, ContractEstimateHistoryOut, ContractEstimateLineOut, ContractEstimateReference, CostSummary, DashboardSummary, EstimateCreate, EstimateOut, EstimateUpdate, GeocodeResult, ImageOut, ImageUpdate, InquiryConvert, InquiryCreate, InquiryList, InquiryListItem, InquiryOut, InquiryStats, InquiryUpdate, ManagementOverview, ManagementOverviewAccess, PaymentCreate, PaymentOut, PaymentSummary, PaymentUpdate, ProjectList, ProjectListItem, ProjectOut, ProjectUpdate, PublicImageOut, PublicProjectListItem, PublicProjectOut, StatusChange, StatusHistoryOut, Token, UserOut
-from .security import create_access_token, get_current_user, hash_password, verify_password
+from .security import DUMMY_PASSWORD_HASH, access_token_subject, create_access_token, get_current_user, hash_password, login_attempts, overview_attempts, verify_password
 from .request_context import set_authenticated_user
 from .request_logging import install_request_logging
 from .schema_compat import ensure_schema_compatibility
@@ -27,12 +27,14 @@ from .simulation_routes import router as simulation_router
 
 settings = get_settings()
 KST = timezone(timedelta(hours=9))
+MEDIA_SESSION_COOKIE = "interior_media_session"
 if not settings.uses_r2:
     Path(settings.media_dir).mkdir(parents=True, exist_ok=True)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    settings.validate_production_security()
     validate_storage_configuration()
     Base.metadata.create_all(bind=engine)
     ensure_schema_compatibility(engine)
@@ -49,16 +51,24 @@ async def lifespan(_: FastAPI):
             if admin:
                 admin.login_id = settings.admin_login_id
             else:
-                db.add(User(login_id=settings.admin_login_id, password_hash=hash_password(settings.admin_password), name="관리자", role=UserRole.ADMIN))
-            db.commit()
+                admin = User(login_id=settings.admin_login_id, password_hash=hash_password(settings.admin_password), name="관리자", role=UserRole.ADMIN)
+                db.add(admin)
+        if not verify_password(settings.admin_password, admin.password_hash):
+            admin.password_hash = hash_password(settings.admin_password)
+        db.commit()
     yield
 
 
-app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title=settings.app_name,
+    version="1.0.0",
+    lifespan=lifespan,
+    docs_url=None if settings.is_production else "/docs",
+    redoc_url=None if settings.is_production else "/redoc",
+    openapi_url=None if settings.is_production else "/openapi.json",
+)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origin_list, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 install_request_logging(app)
-if not settings.uses_r2:
-    app.mount("/media", StaticFiles(directory=settings.media_dir), name="media")
 app.include_router(simulation_router)
 
 
@@ -151,20 +161,108 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/media/{storage_key:path}", include_in_schema=False)
+def local_media(
+    storage_key: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    if settings.uses_r2:
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+
+    path_parts = storage_key.replace("\\", "/").split("/")
+    if not storage_key or any(part in {"", ".", ".."} for part in path_parts):
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+    media_root = Path(settings.media_dir).resolve()
+    target = (media_root / Path(*path_parts)).resolve()
+    if not target.is_relative_to(media_root) or not target.is_file():
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+
+    is_public_image = db.scalar(
+        select(ProjectImage.id)
+        .join(Project, Project.id == ProjectImage.project_id)
+        .where(
+            ProjectImage.storage_key == storage_key,
+            ProjectImage.is_public.is_(True),
+            ProjectImage.deleted_at.is_(None),
+            Project.is_public.is_(True),
+            Project.status == ProjectStatus.COMPLETED,
+            Project.deleted_at.is_(None),
+        )
+        .limit(1)
+    ) is not None
+    if not is_public_image:
+        media_token = request.cookies.get(MEDIA_SESSION_COOKIE, "")
+        try:
+            user_id = access_token_subject(media_token)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.") from None
+        user = db.get(User, user_id)
+        if not user or not user.is_active:
+            raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+
+    cache_control = (
+        "public, max-age=31536000, immutable" if is_public_image else "private, no-store"
+    )
+    return FileResponse(target, headers={"Cache-Control": cache_control})
+
+
 @app.post("/api/v1/auth/login", response_model=Token)
-def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(request: Request, response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    login_key = f"{client_ip}:{form_data.username.strip().casefold()[:100]}"
+    retry_after = login_attempts.retry_after(login_key)
+    if retry_after:
+        raise HTTPException(
+            status_code=429,
+            detail="로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.",
+            headers={"Retry-After": str(retry_after)},
+        )
     user = db.scalar(select(User).where(User.login_id == form_data.username))
-    if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="아이디 또는 비밀번호를 확인해주세요.")
+    password_hash = user.password_hash if user else DUMMY_PASSWORD_HASH
+    password_matches = verify_password(form_data.password, password_hash)
+    if not user or not user.is_active or not password_matches:
+        retry_after = login_attempts.record_failure(login_key)
+        raise HTTPException(
+            status_code=429 if retry_after else 401,
+            detail=(
+                "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요."
+                if retry_after
+                else "아이디 또는 비밀번호를 확인해주세요."
+            ),
+            headers={"Retry-After": str(retry_after)} if retry_after else None,
+        )
+    login_attempts.reset(login_key)
     company = db.scalar(select(CompanySettings).order_by(CompanySettings.created_at).limit(1))
     session_timeout_minutes = company.session_timeout_minutes if company else 480
+    access_token = create_access_token(
+        str(user.id), expires_minutes=session_timeout_minutes
+    )
+    response.set_cookie(
+        key=MEDIA_SESSION_COOKIE,
+        value=access_token,
+        max_age=session_timeout_minutes * 60,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="strict",
+        path="/media",
+    )
     request.state.user_id = str(user.id)
     set_authenticated_user(str(user.id), "/api/v1/auth/login")
     return Token(
-        access_token=create_access_token(
-            str(user.id), expires_minutes=session_timeout_minutes
-        ),
+        access_token=access_token,
         user=UserOut.model_validate(user),
+    )
+
+
+@app.post("/api/v1/auth/logout", status_code=204)
+def logout(response: Response):
+    response.delete_cookie(
+        MEDIA_SESSION_COOKIE,
+        path="/media",
+        secure=settings.is_production,
+        httponly=True,
+        samesite="strict",
     )
 
 
@@ -273,9 +371,19 @@ def dashboard(_: User = Depends(require_admin), db: Session = Depends(get_db)):
 @app.post("/api/v1/management-overview", response_model=ManagementOverview)
 def management_overview(
     payload: ManagementOverviewAccess,
+    request: Request,
     user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    client_ip = request.client.host if request.client else "unknown"
+    overview_key = f"{client_ip}:{user.id}"
+    retry_after = overview_attempts.retry_after(overview_key)
+    if retry_after:
+        raise HTTPException(
+            status_code=429,
+            detail="비밀번호 확인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.",
+            headers={"Retry-After": str(retry_after)},
+        )
     if not settings.management_overview_password:
         raise HTTPException(
             status_code=503,
@@ -285,7 +393,17 @@ def management_overview(
         payload.password,
         settings.management_overview_password,
     ):
-        raise HTTPException(status_code=400, detail="비밀번호가 일치하지 않습니다.")
+        retry_after = overview_attempts.record_failure(overview_key)
+        raise HTTPException(
+            status_code=429 if retry_after else 400,
+            detail=(
+                "비밀번호 확인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요."
+                if retry_after
+                else "비밀번호가 일치하지 않습니다."
+            ),
+            headers={"Retry-After": str(retry_after)} if retry_after else None,
+        )
+    overview_attempts.reset(overview_key)
 
     project_period_conditions = [Project.deleted_at.is_(None)]
     contract_period_conditions = [Project.deleted_at.is_(None)]

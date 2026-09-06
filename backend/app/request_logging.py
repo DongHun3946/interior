@@ -128,6 +128,10 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             raise caught_exception
         assert response is not None
         response.headers["X-Request-ID"] = request_id
+        if request.url.path.startswith("/api/v1/") and not request.url.path.startswith(
+            "/api/v1/public/"
+        ):
+            response.headers["Cache-Control"] = "no-store"
         return response
 
 

@@ -67,10 +67,28 @@ fi
 echo "[검증] 운영 환경과 Docker Compose 구성을 확인합니다."
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --quiet
 
+echo "[Build] Building production images."
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build
+
+echo "[Security] Validating production secrets before replacing running containers."
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run \
+  --rm \
+  --no-deps \
+  backend \
+  /app/.venv/bin/python -c \
+  'from app.core.config import get_settings; get_settings().validate_production_security()'
+
+echo "[Security] Validating the Caddy configuration."
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run \
+  --rm \
+  --no-deps \
+  caddy \
+  caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
 echo "[배포] 운영 이미지를 빌드하고 컨테이너를 갱신합니다."
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up \
   -d \
-  --build \
+  --no-build \
   --remove-orphans \
   --wait \
   --wait-timeout 180

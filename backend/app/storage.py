@@ -24,6 +24,29 @@ CONTENT_TYPE_SUFFIXES = {
 }
 
 
+def _content_matches_declared_type(file: BinaryIO, content_type: str) -> bool:
+    position = file.tell()
+    try:
+        file.seek(0)
+        header = file.read(32)
+    finally:
+        file.seek(position)
+
+    if content_type == "image/jpeg":
+        return header.startswith(b"\xff\xd8\xff")
+    if content_type == "image/png":
+        return header.startswith(b"\x89PNG\r\n\x1a\n")
+    if content_type == "image/gif":
+        return header.startswith((b"GIF87a", b"GIF89a"))
+    if content_type == "image/webp":
+        return len(header) >= 12 and header[:4] == b"RIFF" and header[8:12] == b"WEBP"
+    if content_type in {"video/mp4", "video/quicktime"}:
+        return len(header) >= 12 and header[4:8] == b"ftyp"
+    if content_type == "video/webm":
+        return header.startswith(b"\x1a\x45\xdf\xa3")
+    return False
+
+
 class StorageUploadError(RuntimeError):
     """Raised when an accepted upload cannot be persisted."""
 
@@ -131,8 +154,12 @@ def save_media_upload(folder: str, upload: UploadFile, allowed_types: set[str], 
     if upload.content_type not in allowed_types:
         raise ValueError("지원하지 않는 파일 형식입니다.")
     size = _upload_size(upload.file)
+    if size == 0:
+        raise ValueError("빈 파일은 업로드할 수 없습니다.")
     if size > max_size:
         raise ValueError(f"파일 크기는 {max_size // (1024 * 1024)}MB 이하여야 합니다.")
+    if not _content_matches_declared_type(upload.file, upload.content_type):
+        raise ValueError("파일 내용이 선언된 파일 형식과 일치하지 않습니다.")
     key = _object_key(folder, upload.content_type, upload.filename or "image")
     url = _save_r2_upload(key, upload) if settings.uses_r2 else _save_local_upload(key, upload, max_size)
     return key, url, size

@@ -16,6 +16,10 @@ def test_app() -> FastAPI:
     def ok():
         return {"ok": True}
 
+    @app.get("/api/v1/private")
+    def private():
+        return {"private": True}
+
     @app.get("/missing")
     def missing():
         raise HTTPException(status_code=404, detail="대상을 찾을 수 없습니다.")
@@ -70,6 +74,11 @@ class RequestLoggingTest(unittest.TestCase):
         self.assertEqual(error["code"], "INTERNAL_SERVER_ERROR")
         self.assertEqual(error["type"], "RuntimeError")
         self.assertNotIn("password", error["message"])
+
+    def test_sensitive_api_responses_are_not_cached(self):
+        response = TestClient(test_app()).get("/api/v1/private")
+
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
 
 
 if __name__ == "__main__":

@@ -21,7 +21,10 @@ class FakeS3Client:
         }
 
 
-def image_upload(body: bytes = b"image-data") -> UploadFile:
+PNG_BODY = b"\x89PNG\r\n\x1a\nimage-data"
+
+
+def image_upload(body: bytes = PNG_BODY) -> UploadFile:
     return UploadFile(
         file=io.BytesIO(body),
         filename="living-room.png",
@@ -48,8 +51,8 @@ class R2StorageTest(unittest.TestCase):
         self.assertTrue(key.startswith("project-id/"))
         self.assertTrue(key.endswith(".png"))
         self.assertEqual(url, f"https://images.example.com/{key}")
-        self.assertEqual(size, len(b"image-data"))
-        self.assertEqual(client.upload["body"], b"image-data")
+        self.assertEqual(size, len(PNG_BODY))
+        self.assertEqual(client.upload["body"], PNG_BODY)
         self.assertEqual(client.upload["bucket"], "jeil-interior")
         self.assertEqual(client.upload["extra_args"]["ContentType"], "image/png")
 
@@ -92,6 +95,15 @@ class R2StorageTest(unittest.TestCase):
         with patch.multiple(storage.settings, **configured):
             with self.assertRaisesRegex(storage.StorageUploadError, "R2_ACCOUNT_ID"):
                 storage.save_upload("project-id", image_upload())
+
+
+    def test_rejects_content_that_does_not_match_declared_type(self):
+        with self.assertRaisesRegex(ValueError, "파일 내용"):
+            storage.save_upload("project-id", image_upload(b"not-a-png"))
+
+    def test_rejects_empty_upload(self):
+        with self.assertRaisesRegex(ValueError, "빈 파일"):
+            storage.save_upload("project-id", image_upload(b""))
 
 
 if __name__ == "__main__":

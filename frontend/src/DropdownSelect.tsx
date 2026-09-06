@@ -107,7 +107,7 @@ export default function DropdownSelect({
   return (
     <div
       ref={rootRef}
-      className={`relative ${className}`}
+      className={`relative min-w-0 max-w-full ${className}`}
       onKeyDown={(event) => {
         if (event.key === "Tab") {
           setOpen(false);

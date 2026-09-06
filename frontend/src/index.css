@@ -37,6 +37,12 @@ select,
 textarea {
   font: inherit;
 }
+input,
+select,
+textarea {
+  min-width: 0;
+  max-width: 100%;
+}
 button {
   cursor: pointer;
 }
@@ -464,7 +470,7 @@ button {
     @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#dfe5df] bg-white px-4 py-2.5 text-sm font-semibold text-[#345344] transition hover:bg-[#f3f7f2];
   }
   .field {
-    @apply w-full rounded-xl border border-[#c9d3cb] bg-white px-3.5 py-3 text-sm text-[#22352b] outline-none transition placeholder:text-[#929f96] hover:border-[#aebdb2] focus:border-[#628b72] focus:ring-2 focus:ring-[#d9e9dd];
+    @apply min-w-0 max-w-full w-full rounded-xl border border-[#c9d3cb] bg-white px-3.5 py-3 text-sm text-[#22352b] outline-none transition placeholder:text-[#929f96] hover:border-[#aebdb2] focus:border-[#628b72] focus:ring-2 focus:ring-[#d9e9dd];
   }
   .label {
     @apply mb-1.5 block text-sm font-semibold text-[#596a60];

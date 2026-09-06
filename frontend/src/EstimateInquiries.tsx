@@ -51,7 +51,7 @@ const emptyCompanySettings: CompanySettings = {
 };
 
 const inquiryStatusLabels: Record<InquiryStatus, string> = {
-  NEW: "신규 문의",
+  NEW: "상담 완료",
   CONSULTATION_SCHEDULED: "상담 예약",
   CONSULTATION_COMPLETED: "상담 완료",
   SITE_VISIT_COMPLETED: "실측 완료",
@@ -75,13 +75,12 @@ const inquiryStatusStyles: Record<InquiryStatus, string> = {
   ON_HOLD: "bg-slate-100 text-slate-600",
 };
 const statuses: InquiryStatus[] = [
-  "NEW",
   "CONSULTATION_SCHEDULED",
   "CONSULTATION_COMPLETED",
   "CONTRACTED",
 ];
 const inquiryStatusDots: Partial<Record<InquiryStatus, string>> = {
-  NEW: "bg-blue-500",
+  NEW: "bg-teal-500",
   CONSULTATION_SCHEDULED: "bg-violet-500",
   CONSULTATION_COMPLETED: "bg-teal-500",
   CONTRACTED: "bg-emerald-500",
@@ -331,7 +330,7 @@ function inquiryFormValue(inquiry?: EstimateInquiry): InquiryFormState {
   return {
     customer_name: inquiry?.customer_name || "",
     customer_phone: inquiry?.customer_phone || "",
-    status: inquiry?.status || "NEW",
+    status: inquiry?.status || "CONSULTATION_COMPLETED",
     address: inquiry?.address || "",
     address_detail: inquiry?.address_detail || "",
     housing_type: inquiry?.housing_type || "",
@@ -2044,15 +2043,8 @@ export default function EstimateInquiriesPage({
     <div className="space-y-4 p-4 sm:space-y-6 sm:p-6 xl:p-8">
       <div className="flex flex-col gap-2.5 xl:flex-row xl:items-start xl:justify-between">
         {stats && (
-          <div className="grid w-full max-w-2xl grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5">
+          <div className="grid w-full max-w-2xl grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5">
             {[
-              {
-                label: "신규 문의",
-                value: stats.status_counts.NEW || 0,
-                icon: UserRoundPlus,
-                tone: "bg-blue-50 text-blue-700",
-                statusValue: "NEW",
-              },
               {
                 label: "상담 예약",
                 value: stats.status_counts.CONSULTATION_SCHEDULED || 0,

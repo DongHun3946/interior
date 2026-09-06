@@ -385,7 +385,7 @@ class EstimateOut(BaseModel):
 class InquiryBase(BaseModel):
     customer_name: str = Field(min_length=1, max_length=100)
     customer_phone: str = Field(min_length=1, max_length=40)
-    status: InquiryStatus = InquiryStatus.NEW
+    status: InquiryStatus = InquiryStatus.CONSULTATION_COMPLETED
     address: str | None = None
     address_detail: str | None = None
     housing_type: str | None = None

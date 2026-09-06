@@ -2757,7 +2757,7 @@ function ProjectForm({
                 className="field"
                 value={String(form.address_detail || "")}
                 onChange={(e) => set("address_detail", e.target.value)}
-                placeholder="예: 101동 1203호"
+                placeholder="예: OO아파트 101동 1203호"
               />
             </div>
             <div>

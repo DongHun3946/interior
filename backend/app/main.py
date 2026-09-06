@@ -863,7 +863,10 @@ def list_estimate_inquiries(
 
 @app.post("/api/v1/estimate-inquiries", response_model=InquiryOut, status_code=201)
 def create_estimate_inquiry(payload: InquiryCreate, user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    inquiry = EstimateInquiry(**payload.model_dump(), created_by=user.id)
+    values = payload.model_dump()
+    if values["status"] == InquiryStatus.NEW:
+        values["status"] = InquiryStatus.CONSULTATION_COMPLETED
+    inquiry = EstimateInquiry(**values, created_by=user.id)
     db.add(inquiry)
     db.commit()
     return inquiry_or_404(db, inquiry.id)
@@ -888,7 +891,10 @@ def get_estimate_inquiry(inquiry_id: UUID, _: User = Depends(require_admin), db:
 @app.patch("/api/v1/estimate-inquiries/{inquiry_id}", response_model=InquiryOut)
 def update_estimate_inquiry(inquiry_id: UUID, payload: InquiryUpdate, _: User = Depends(require_admin), db: Session = Depends(get_db)):
     inquiry = inquiry_or_404(db, inquiry_id)
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    values = payload.model_dump(exclude_unset=True)
+    if values.get("status") == InquiryStatus.NEW:
+        values["status"] = InquiryStatus.CONSULTATION_COMPLETED
+    for key, value in values.items():
         setattr(inquiry, key, value)
     db.commit()
     return inquiry_or_404(db, inquiry.id)

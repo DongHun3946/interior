@@ -288,6 +288,25 @@ def _migrate_consultation_reserved_at(engine: Engine) -> None:
         )
 
 
+def _migrate_new_inquiry_status(engine: Engine) -> None:
+    inspector = inspect(engine)
+    if "estimate_inquiries" not in inspector.get_table_names():
+        return
+    columns = {
+        column["name"] for column in inspector.get_columns("estimate_inquiries")
+    }
+    if "status" not in columns:
+        return
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE estimate_inquiries "
+                "SET status = 'CONSULTATION_COMPLETED' "
+                "WHERE status = 'NEW'"
+            )
+        )
+
+
 def _drop_legacy_cost_items(engine: Engine) -> None:
     inspector = inspect(engine)
     if "cost_items" not in inspector.get_table_names():
@@ -306,6 +325,7 @@ def ensure_schema_compatibility(engine: Engine) -> None:
     _migrate_project_content_fields(engine)
     _migrate_project_type(engine)
     _migrate_consultation_reserved_at(engine)
+    _migrate_new_inquiry_status(engine)
     _drop_removed_columns(engine)
     _drop_legacy_cost_items(engine)
     if engine.dialect.name == "postgresql":

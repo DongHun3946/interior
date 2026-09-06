@@ -297,7 +297,11 @@ class EstimateInquiry(Base):
     id: Mapped[uuid.UUID] = uuid_column()
     customer_name: Mapped[str] = mapped_column(String(100), index=True)
     customer_phone: Mapped[str] = mapped_column(String(40), index=True)
-    status: Mapped[InquiryStatus] = mapped_column(Enum(InquiryStatus), default=InquiryStatus.NEW, index=True)
+    status: Mapped[InquiryStatus] = mapped_column(
+        Enum(InquiryStatus),
+        default=InquiryStatus.CONSULTATION_COMPLETED,
+        index=True,
+    )
     address: Mapped[str | None] = mapped_column(String(300), nullable=True)
     address_detail: Mapped[str | None] = mapped_column(String(200), nullable=True)
     housing_type: Mapped[str | None] = mapped_column(String(60), nullable=True)

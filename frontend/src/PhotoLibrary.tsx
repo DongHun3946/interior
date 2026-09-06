@@ -346,7 +346,7 @@ export default function PhotoLibrary({
             }}
           >
             <div className="flex min-w-0 gap-2 md:col-span-2 xl:contents">
-              <div className="relative min-w-0 flex-1 xl:col-start-4">
+              <div className="relative min-w-0 flex-1 xl:col-start-4 xl:row-start-1">
                 <Search
                   size={16}
                   className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#87968d]"
@@ -396,12 +396,14 @@ export default function PhotoLibrary({
                 options={projectOptions}
                 onChange={(value) => changeFilter(setProjectId, value)}
                 ariaLabel="현장 필터"
+                className="xl:col-start-1 xl:row-start-1"
               />
               <DropdownSelect
                 value={classification}
                 options={classificationFilterOptions}
                 onChange={(value) => changeFilter(setClassification, value)}
                 ariaLabel="사진 분류 필터"
+                className="xl:col-start-2 xl:row-start-1"
               />
               <DropdownSelect
                 value={visibility}
@@ -413,10 +415,11 @@ export default function PhotoLibrary({
                   )
                 }
                 ariaLabel="공개 상태 필터"
+                className="xl:col-start-3 xl:row-start-1"
               />
               <button
                 type="button"
-                className="btn-secondary w-full xl:col-start-5"
+                className="btn-secondary w-full xl:col-start-5 xl:row-start-1"
                 onClick={resetFilters}
                 disabled={
                   !projectId &&

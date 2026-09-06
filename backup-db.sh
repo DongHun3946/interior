@@ -23,27 +23,27 @@ command_exists() {
 }
 
 if ! command_exists docker || ! docker compose version >/dev/null 2>&1; then
-  echo "오류: Docker Engine과 Docker Compose 플러그인이 필요합니다." >&2
+  echo "Error: Docker Engine and the Docker Compose plugin are required." >&2
   exit 1
 fi
 
 if ! command_exists gzip; then
-  echo "오류: gzip이 설치되어 있지 않습니다." >&2
+  echo "Error: gzip is not installed." >&2
   exit 1
 fi
 
 if [[ ! "$RETENTION_DAYS" =~ ^[1-9][0-9]*$ ]]; then
-  echo "오류: DB_BACKUP_RETENTION_DAYS는 1 이상의 정수여야 합니다." >&2
+  echo "Error: DB_BACKUP_RETENTION_DAYS must be a positive integer." >&2
   exit 1
 fi
 
 if [[ ! -f "$COMPOSE_FILE" ]]; then
-  echo "오류: 운영 Compose 파일을 찾을 수 없습니다: $COMPOSE_FILE" >&2
+  echo "Error: Production Compose file not found: $COMPOSE_FILE" >&2
   exit 1
 fi
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  echo "오류: 운영 환경 파일을 찾을 수 없습니다: $ENV_FILE" >&2
+  echo "Error: Production environment file not found: $ENV_FILE" >&2
   exit 1
 fi
 
@@ -71,4 +71,4 @@ find "$BACKUP_DIR" \
   -mtime "+$((RETENTION_DAYS - 1))" \
   -delete
 
-echo "DB 백업 완료: $BACKUP_FILE"
+echo "Database backup completed: $BACKUP_FILE"

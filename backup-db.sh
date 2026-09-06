@@ -2,10 +2,10 @@
 
 set -Eeuo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_FILE="$SCRIPT_DIR/docker-compose.prod.yml"
-ENV_FILE="$SCRIPT_DIR/.env.production"
-BACKUP_DIR="${DB_BACKUP_DIR:-$SCRIPT_DIR/../backups/interior-db}"
+PROJECT_DIR="${INTERIOR_PROJECT_DIR:-/home/ubuntu/interior}"
+COMPOSE_FILE="$PROJECT_DIR/docker-compose.prod.yml"
+ENV_FILE="$PROJECT_DIR/.env.production"
+BACKUP_DIR="${DB_BACKUP_DIR:-/home/ubuntu/backups/interior-db}"
 RETENTION_DAYS="${DB_BACKUP_RETENTION_DAYS:-7}"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_FILE="$BACKUP_DIR/interior-$TIMESTAMP.sql.gz"
@@ -52,7 +52,7 @@ chmod 700 "$BACKUP_DIR"
 umask 077
 TEMP_FILE="$(mktemp "$BACKUP_DIR/.interior-$TIMESTAMP.XXXXXX.sql.gz")"
 
-cd "$SCRIPT_DIR"
+cd "$PROJECT_DIR"
 
 docker compose \
   --env-file "$ENV_FILE" \

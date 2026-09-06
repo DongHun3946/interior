@@ -11,3 +11,6 @@ frontend/dist/
 frontend/dist-test/
 *.tsbuildinfo
 *.md
+backup-db.sh
+restore-db.sh
+reset-db.sh

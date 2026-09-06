@@ -254,9 +254,9 @@ button {
 }
 
 /*
- * iOS WebKit 26 includes the inline padding outside width: 100% for native
- * date/time controls. Subtract the field's 1.75rem horizontal padding so the
- * rendered border stays inside its parent on iPhone and iPad.
+ * iOS WebKit can include inline padding outside width: 100% for native
+ * date/time controls. Removing that padding avoids relying on a device-specific
+ * compensation value and keeps the rendered border inside its parent.
  */
 @supports (-webkit-touch-callout: none) {
   input.field:is(
@@ -266,7 +266,9 @@ button {
       [type="time"],
       [type="week"]
     ) {
-    width: calc(100% - 1.75rem);
+    width: 100%;
+    padding-right: 0;
+    padding-left: 0;
   }
 }
 
